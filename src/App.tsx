@@ -385,6 +385,90 @@ export default function App() {
     downloadCSV(rows.join('\n'), 'oscillatory_1overB_all_files.csv');
   };
 
+  // Raw R vs B, interpolated onto one shared B(T) grid (like FFT Assemble
+  // does for spectra) — a single B column on the left, then one R column per
+  // file/series, ordered by angle or temperature.
+  const exportRawAlignedCSV = () => {
+    if (fileNumericViews.length === 0) return;
+    const dataLo = Math.min(...fileNumericViews.map(v => v.bMin));
+    const dataHi = Math.max(...fileNumericViews.map(v => v.bMax));
+    const lo = typeof minB === 'number' ? Math.max(minB, dataLo) : dataLo;
+    const hi = typeof maxB === 'number' ? Math.min(maxB, dataHi) : dataHi;
+    if (!(hi > lo) || !isFinite(lo) || !isFinite(hi)) return;
+
+    const N = 500;
+    const step = (hi - lo) / (N - 1);
+
+    const entries = fileNumericViews
+      .map((v, fIdx) => ({ v, cols: targetColsFor(v.file), ...alignedExportTag(v.file, fIdx) }))
+      .filter(e => e.cols.length > 0 && e.v.bVals.length > 0)
+      .sort((a, b) => a.sortVal - b.sortVal);
+    if (entries.length === 0) return;
+
+    const headerRow = ['B(T)'];
+    entries.forEach(({ v, cols, label }) => cols.forEach(c => headerRow.push(`"${label}_${v.file.name}_${c}"`)));
+
+    const rows = [headerRow.join(',')];
+    for (let i = 0; i < N; i++) {
+      const b = lo + i * step;
+      const row = [b.toFixed(6)];
+      entries.forEach(({ v, cols }) => {
+        cols.forEach(c => {
+          const val = lerpFast(v.bVals, v.colVals(c), b);
+          row.push(isFinite(val) ? String(val) : '');
+        });
+      });
+      rows.push(row.join(','));
+    }
+    downloadCSV(rows.join('\n'), 'raw_aligned_all_files.csv');
+  };
+
+  // Oscillatory ΔR vs 1/B, interpolated onto one shared 1/B grid — a single
+  // 1/B column on the left, then one ΔR column per file/column, ordered by
+  // angle or temperature. Needs "Process All" to have run (uses res.plotData).
+  const exportOscillatoryAlignedCSV = () => {
+    const hasResults = files.some(f => f.results && f.results.length > 0);
+    if (!hasResults) {
+      setError('"Process All Files" 를 먼저 실행하세요.');
+      return;
+    }
+    let dataLo = Infinity, dataHi = -Infinity;
+    files.forEach(f => (f.results || []).forEach(r => r.plotData.forEach(p => {
+      if (p.invB < dataLo) dataLo = p.invB;
+      if (p.invB > dataHi) dataHi = p.invB;
+    })));
+    if (!(dataHi > dataLo)) return;
+    const lo = typeof maxB === 'number' && maxB > 0 ? Math.max(1 / maxB, dataLo) : dataLo;
+    const hi = typeof minB === 'number' && minB > 0 ? Math.min(1 / minB, dataHi) : dataHi;
+    if (!(hi > lo)) return;
+
+    const N = interpPoints > 0 ? interpPoints : 1000;
+    const step = (hi - lo) / (N - 1);
+
+    type SeriesEntry = { label: string; sortVal: number; grid: Float64Array };
+    const series: SeriesEntry[] = [];
+    files.forEach((file, fIdx) => {
+      const { sortVal, label } = alignedExportTag(file, fIdx);
+      (file.results || []).forEach(res => {
+        const sorted = [...res.plotData].sort((a, b) => a.invB - b.invB).map(p => ({ invB: p.invB, deltaR: p.deltaR }));
+        if (sorted.length < 2) return;
+        series.push({ label: `${label}_${file.name}_${res.columnName}`, sortVal, grid: linearInterpUniform(sorted, lo, step, N) });
+      });
+    });
+    if (series.length === 0) return;
+    series.sort((a, b) => a.sortVal - b.sortVal);
+
+    const headerRow = ['1_over_B', ...series.map(s => `"${s.label}"`)];
+    const rows = [headerRow.join(',')];
+    for (let i = 0; i < N; i++) {
+      const invB = lo + i * step;
+      const row = [invB.toFixed(6)];
+      series.forEach(s => row.push(String(s.grid[i])));
+      rows.push(row.join(','));
+    }
+    downloadCSV(rows.join('\n'), 'oscillatory_1overB_aligned_all_files.csv');
+  };
+
   // Export the L-K fit series + fitted parameters.
   const exportLKFitCSV = () => {
     if (!lkFitResult || lkFitResult.points.length === 0) return;
@@ -1440,6 +1524,19 @@ export default function App() {
     }
     return getFileTemperature(file);
   }, [getFileTemperature]);
+
+  // File sort key/label for the two "aligned" exports (exportRawAlignedCSV /
+  // exportOscillatoryAlignedCSV, defined earlier): angle when the active
+  // bucket is a BLM sweep, temperature when it's a T-sweep — whichever axis
+  // actually varies across these files.
+  const alignedExportTag = useCallback((file: FileEntry, fIdx: number): { sortVal: number; label: string } => {
+    if (activeBucket === 'temperature') {
+      const t = resolveTemperature(file);
+      return { sortVal: t, label: `${t.toFixed(2)}K` };
+    }
+    const blm = resolveBlm(file, fIdx);
+    return { sortVal: blm, label: `${blm}deg` };
+  }, [activeBucket, resolveTemperature, resolveBlm]);
 
   // Every processed column name available across all files, for the L-K Fit
   // column picker.
@@ -4503,6 +4600,9 @@ export default function App() {
                   <button onClick={exportFFTSpectraCSV} className="px-2.5 py-1 font-mono text-[8px] uppercase border border-[#E4E3E0]/15 hover:bg-white/5 flex items-center gap-1"><Download size={9} />FFT</button>
                   <button onClick={exportPeaksWideCSV} className="px-2.5 py-1 font-mono text-[8px] uppercase border border-[#E4E3E0]/15 hover:bg-white/5 flex items-center gap-1"><Download size={9} />Peaks</button>
                   <button onClick={exportOscillatory1overBCSV} className="px-2.5 py-1 font-mono text-[8px] uppercase border border-[#E4E3E0]/15 hover:bg-white/5 flex items-center gap-1"><Download size={9} />Osc 1/B</button>
+                  <span className="w-px h-4 bg-[#E4E3E0]/15 mx-1" />
+                  <button onClick={exportRawAlignedCSV} title="FFT Assemble처럼 하나의 B(T) 그리드에 보간, 각도/온도순 정렬" className="px-2.5 py-1 font-mono text-[8px] uppercase border border-[#F27D26]/40 text-[#F27D26] hover:bg-[#F27D26]/10 flex items-center gap-1"><Download size={9} />Raw (Aligned)</button>
+                  <button onClick={exportOscillatoryAlignedCSV} title="FFT Assemble처럼 하나의 1/B 그리드에 보간, 각도/온도순 정렬" className="px-2.5 py-1 font-mono text-[8px] uppercase border border-[#F27D26]/40 text-[#F27D26] hover:bg-[#F27D26]/10 flex items-center gap-1"><Download size={9} />Osc (Aligned)</button>
                   {activeBlms.size > 30 && <span className="ml-2 text-[8px] font-mono text-[#F27D26] animate-pulse">{activeBlms.size} series active — performance may suffer</span>}
                 </div>
               </div>
