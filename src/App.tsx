@@ -423,6 +423,59 @@ export default function App() {
     downloadCSV(rows.join('\n'), 'raw_aligned_all_files.csv');
   };
 
+  // ΔR (polynomial background removed) vs B — same shared-B(T)-grid layout as
+  // exportRawAlignedCSV, but the background-subtracted value instead of the
+  // raw one. Needs "Process All" to have run (uses res.plotData for ΔR).
+  const exportBackgroundSubtractedAlignedCSV = () => {
+    const hasResults = files.some(f => f.results && f.results.length > 0);
+    if (!hasResults) {
+      setError('"Process All Files" 를 먼저 실행하세요.');
+      return;
+    }
+    let dataLo = Infinity, dataHi = -Infinity;
+    files.forEach(f => (f.results || []).forEach(r => r.plotData.forEach(p => {
+      if (p.b < dataLo) dataLo = p.b;
+      if (p.b > dataHi) dataHi = p.b;
+    })));
+    if (!(dataHi > dataLo)) return;
+    const lo = typeof minB === 'number' ? Math.max(minB, dataLo) : dataLo;
+    const hi = typeof maxB === 'number' ? Math.min(maxB, dataHi) : dataHi;
+    if (!(hi > lo)) return;
+
+    const N = 500;
+    const step = (hi - lo) / (N - 1);
+
+    type SeriesEntry = { label: string; sortVal: number; bVals: Float64Array; deltaRVals: Float64Array };
+    const series: SeriesEntry[] = [];
+    files.forEach((file, fIdx) => {
+      const { sortVal, label } = alignedExportTag(file, fIdx);
+      (file.results || []).forEach(res => {
+        const sorted = [...res.plotData].sort((a, b) => a.b - b.b);
+        if (sorted.length < 2) return;
+        series.push({
+          label: `${label}_${file.name}_${res.columnName}`, sortVal,
+          bVals: Float64Array.from(sorted.map(p => p.b)),
+          deltaRVals: Float64Array.from(sorted.map(p => p.deltaR)),
+        });
+      });
+    });
+    if (series.length === 0) return;
+    series.sort((a, b) => a.sortVal - b.sortVal);
+
+    const headerRow = ['B(T)', ...series.map(s => `"${s.label}"`)];
+    const rows = [headerRow.join(',')];
+    for (let i = 0; i < N; i++) {
+      const b = lo + i * step;
+      const row = [b.toFixed(6)];
+      series.forEach(s => {
+        const val = lerpFast(s.bVals, s.deltaRVals, b);
+        row.push(isFinite(val) ? String(val) : '');
+      });
+      rows.push(row.join(','));
+    }
+    downloadCSV(rows.join('\n'), 'background_subtracted_aligned_all_files.csv');
+  };
+
   // Oscillatory ΔR vs 1/B, interpolated onto one shared 1/B grid — a single
   // 1/B column on the left, then one ΔR column per file/column, ordered by
   // angle or temperature. Needs "Process All" to have run (uses res.plotData).
@@ -4602,6 +4655,7 @@ export default function App() {
                   <button onClick={exportOscillatory1overBCSV} className="px-2.5 py-1 font-mono text-[8px] uppercase border border-[#E4E3E0]/15 hover:bg-white/5 flex items-center gap-1"><Download size={9} />Osc 1/B</button>
                   <span className="w-px h-4 bg-[#E4E3E0]/15 mx-1" />
                   <button onClick={exportRawAlignedCSV} title="FFT Assemble처럼 하나의 B(T) 그리드에 보간, 각도/온도순 정렬" className="px-2.5 py-1 font-mono text-[8px] uppercase border border-[#F27D26]/40 text-[#F27D26] hover:bg-[#F27D26]/10 flex items-center gap-1"><Download size={9} />Raw (Aligned)</button>
+                  <button onClick={exportBackgroundSubtractedAlignedCSV} title="B(T) 그리드에 보간, polynomial 배경 제거된 ΔR, 각도/온도순 정렬" className="px-2.5 py-1 font-mono text-[8px] uppercase border border-[#F27D26]/40 text-[#F27D26] hover:bg-[#F27D26]/10 flex items-center gap-1"><Download size={9} />ΔR (Aligned)</button>
                   <button onClick={exportOscillatoryAlignedCSV} title="FFT Assemble처럼 하나의 1/B 그리드에 보간, 각도/온도순 정렬" className="px-2.5 py-1 font-mono text-[8px] uppercase border border-[#F27D26]/40 text-[#F27D26] hover:bg-[#F27D26]/10 flex items-center gap-1"><Download size={9} />Osc (Aligned)</button>
                   {activeBlms.size > 30 && <span className="ml-2 text-[8px] font-mono text-[#F27D26] animate-pulse">{activeBlms.size} series active — performance may suffer</span>}
                 </div>
