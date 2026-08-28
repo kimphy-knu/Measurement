@@ -1550,16 +1550,25 @@ export default function App() {
     const r2 = sst > 0 ? 1 - ssr / sst : 1;
 
     return { points: _.orderBy(points, ['temp'], ['asc']), mStar, A0, r2 };
-  }, [files, lkColumn, lkFreq, resolveTemperature]);
+    // Only recomputed while the L-K Fit tab is actually open — this runs a
+    // 400-step scan + golden-section search over every file, no reason to pay
+    // for it while the user is on a different tab.
+  }, [activeTab, files, lkColumn, lkFreq, resolveTemperature]);
 
-  // ---- FFT Range Scan: how does the detected peak, across every file in the
+  // ---- FFT Range Scan: how do ALL detected peaks, across every file in the
   // batch, shift when the B-field window changes? Not a single-file drill
-  // down — the point is comparing "peak vs angle" under the currently
+  // down — the point is comparing peaks-vs-angle under the currently
   // committed range against a candidate range, side by side, so a window
   // choice can be judged for stability across the whole sweep at once.
   // Reuses processFileData's rangeOverride so nothing else on the page
   // reprocesses while the candidate range is being tuned.
+  //
+  // Gated on activeTab: this reprocesses every included file twice (full
+  // background-subtraction + FFT), and processFileData's identity changes on
+  // almost any Dashboard setting — without the gate this was refiring on
+  // every sidebar tweak even while looking at a completely different tab.
   const rangeScanFileBExtent = useMemo(() => {
+    if (activeTab !== 'fftrange') return null;
     let lo = Infinity, hi = -Infinity;
     files.forEach(f => {
       const bCol = resolveBCol(f);
@@ -1569,7 +1578,7 @@ export default function App() {
       });
     });
     return isFinite(lo) && isFinite(hi) && hi > lo ? { lo, hi } : null;
-  }, [files, resolveBCol]);
+  }, [activeTab, files, resolveBCol]);
 
   const rangeScanMinBEff = rangeScanMinB ?? (typeof minB === 'number' ? minB : rangeScanFileBExtent?.lo ?? 0);
   const rangeScanMaxBEff = rangeScanMaxB ?? (typeof maxB === 'number' ? maxB : rangeScanFileBExtent?.hi ?? 1);
@@ -1577,27 +1586,40 @@ export default function App() {
   const committedMinB = typeof minB === 'number' ? minB : -Infinity;
   const committedMaxB = typeof maxB === 'number' ? maxB : Infinity;
 
-  // One row per included file: its angle, and the peak frequency detected
-  // under the committed range vs. the candidate range (first matching column
-  // per file, same resolution rule "Process All" uses).
-  const rangeScanBatch = useMemo(() => {
-    return filesByAngle
+  // batch: one row per included file — its angle and the single strongest
+  // peak under each range, for the stability stats and the table.
+  // currentPeaks/candidatePeaks: every detected peak (not just the top one)
+  // under each range, for the scatter chart — plotted as colored points, not
+  // connected, since a file can have more than one real peak.
+  const rangeScanResult = useMemo(() => {
+    if (activeTab !== 'fftrange') return { batch: [], currentPeaks: [], candidatePeaks: [] };
+    const batch: { blm: number; fileName: string; committedPeak: number | null; candidatePeak: number | null }[] = [];
+    const currentPeaks: { blm: number; frequency: number }[] = [];
+    const candidatePeaks: { blm: number; frequency: number }[] = [];
+    filesByAngle
       .filter(({ file }) => !fftSkip.has(file.id))
-      .map(({ file, blm }) => {
+      .forEach(({ file, blm }) => {
         const bCol = resolveBCol(file);
         const rCol = targetColsFor(file)[0];
-        if (!rCol) return { blm, fileName: file.name, committedPeak: null, candidatePeak: null };
+        if (!rCol) { batch.push({ blm, fileName: file.name, committedPeak: null, candidatePeak: null }); return; }
         const committedRes = processFileData(file.data, bCol, rCol, undefined, undefined, { min: committedMinB, max: committedMaxB });
         const candidateRes = processFileData(file.data, bCol, rCol, undefined, undefined, { min: rangeScanMinBEff, max: rangeScanMaxBEff });
-        return {
+        batch.push({
           blm, fileName: file.name,
           committedPeak: committedRes?.peakFrequency?.frequency ?? null,
           candidatePeak: candidateRes?.peakFrequency?.frequency ?? null,
-        };
-      })
-      .filter(d => d.committedPeak !== null || d.candidatePeak !== null)
-      .sort((a, b) => a.blm - b.blm);
-  }, [filesByAngle, fftSkip, resolveBCol, targetColsFor, committedMinB, committedMaxB, rangeScanMinBEff, rangeScanMaxBEff, processFileData]);
+        });
+        (committedRes?.detectedPeaks ?? []).forEach(p => currentPeaks.push({ blm, frequency: p.frequency }));
+        (candidateRes?.detectedPeaks ?? []).forEach(p => candidatePeaks.push({ blm, frequency: p.frequency }));
+      });
+    return {
+      batch: batch.filter(d => d.committedPeak !== null || d.candidatePeak !== null).sort((a, b) => a.blm - b.blm),
+      currentPeaks, candidatePeaks,
+    };
+  }, [activeTab, filesByAngle, fftSkip, resolveBCol, targetColsFor, committedMinB, committedMaxB, rangeScanMinBEff, rangeScanMaxBEff, processFileData]);
+  const rangeScanBatch = rangeScanResult.batch;
+  const rangeScanCurrentPeaks = rangeScanResult.currentPeaks;
+  const rangeScanCandidatePeaks = rangeScanResult.candidatePeaks;
 
   const rangeScanStability = useMemo(() => {
     const withBoth = rangeScanBatch.filter(d => d.committedPeak !== null && d.candidatePeak !== null);
@@ -6979,8 +7001,8 @@ export default function App() {
                             formatter={(v: any, name: string) => [typeof v === 'number' ? v.toFixed(2) : v, name]}
                             labelFormatter={(v: number) => `angle = ${Number(v).toFixed(2)}°`} />
                           <Legend wrapperStyle={{ fontSize: 9, fontFamily: 'monospace' }} />
-                          <Line data={rangeScanBatch} dataKey="committedPeak" stroke="#60A5FA" strokeWidth={2} dot={{ r: 3 }} name="Current Range" isAnimationActive={false} connectNulls />
-                          <Line data={rangeScanBatch} dataKey="candidatePeak" stroke="#F27D26" strokeWidth={2} dot={{ r: 3 }} name="Candidate Range" isAnimationActive={false} connectNulls />
+                          <Scatter data={rangeScanCurrentPeaks} dataKey="frequency" fill="#60A5FA" name="Current Range" isAnimationActive={false} />
+                          <Scatter data={rangeScanCandidatePeaks} dataKey="frequency" fill="#F27D26" name="Candidate Range" isAnimationActive={false} />
                         </ComposedChart>
                       </ResponsiveContainer>
                     </div>
