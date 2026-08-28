@@ -42,19 +42,42 @@ export interface FileEntry {
   results: AnalysisResult[];
 }
 
-// A sample can be measured at more than one physical orientation; each one
-// carries its own complete file set (its own BLM sweep) and its own
-// processing settings, since a re-mounted sample often needs a different
-// field window / column selection than the last.
-export interface OrientationEntry {
+// One measurement type's files + the processing settings that go with them.
+// Angle and temperature sweeps are usually different files with potentially
+// different columns/ranges, so each bucket keeps its own settings rather than
+// sharing one set across both.
+export interface FileBucket {
+  files: FileEntry[];
+  settings: Record<string, any>;
+}
+
+// A temperature sweep is run at one fixed angle; a sample can have several
+// such sweeps (one per angle of interest), each named by its filenames'
+// temperature but grouped here under the angle it was taken at.
+export interface TemperatureSweepGroup {
   id: string;
   label: string;
   files: FileEntry[];
+}
+
+// All temperature-sweep groups for one orientation share one set of
+// processing settings — same physical setup/columns, just a different fixed
+// angle per group.
+export interface TemperatureBucket {
+  groups: TemperatureSweepGroup[];
   settings: Record<string, any>;
-  // 'angle': a BLM/angle sweep at fixed temperature (the original workflow —
-  // Torque/Landau Fan/Harmonics/Symmetry/Branch all assume this).
-  // 'temperature': a temperature sweep at fixed angle, for the L-K mass fit.
-  mode: 'angle' | 'temperature';
+}
+
+// A sample can be measured at more than one physical orientation, and within
+// one orientation you can run both kinds of sweep: an angle/BLM sweep at
+// fixed temperature (feeds Torque/Landau Fan/Harmonics/Symmetry/Branch) and
+// one or more temperature sweeps at fixed angle (feeds the L-K mass fit).
+// Both live side by side under the same orientation as independent buckets.
+export interface OrientationEntry {
+  id: string;
+  label: string;
+  angle: FileBucket;
+  temperature: TemperatureBucket;
 }
 
 // ── OLS with a cached design-matrix factorization ─────────────────────────

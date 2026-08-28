@@ -51,7 +51,8 @@ import {
 } from 'lucide-react';
 
 import type {
-  User, LocalUser, FFTResult, AnalysisResult, FileEntry, OrientationEntry, OlsModel,
+  User, LocalUser, FFTResult, AnalysisResult, FileEntry, OrientationEntry, FileBucket,
+  TemperatureBucket, TemperatureSweepGroup, OlsModel,
 } from './types';
 import { lsGetPrefs, lsSavePrefs } from './lib/localPrefs';
 import { dropQuadratureStrict } from './lib/quadrature';
@@ -584,7 +585,17 @@ export default function App() {
   // building up a temperature series one file at a time) can silently drift
   // the prefix to whatever that file's own columns suggest.
   const [prefixLocked, setPrefixLocked] = useState(false);
-  const [orientationMode, setOrientationMode] = useState<'angle' | 'temperature'>('angle');
+  // Which bucket of the active orientation is currently loaded into `files` —
+  // an orientation holds one angle-sweep bucket and one temperature-sweep
+  // bucket side by side, and this picks which one is "live" right now.
+  const [activeBucket, setActiveBucket] = useState<'angle' | 'temperature'>('angle');
+  // Temperature sweeps run at different fixed angles are kept as separate
+  // named groups inside the temperature bucket; this is which one is loaded.
+  const [activeTempGroupId, setActiveTempGroupId] = useState<string>('');
+  const [tempGroupLabelDraft, setTempGroupLabelDraft] = useState<string>('');
+  const [showAddTempGroup, setShowAddTempGroup] = useState(false);
+  const [editingTempGroupId, setEditingTempGroupId] = useState<string | null>(null);
+  const [editTempGroupLabelDraft, setEditTempGroupLabelDraft] = useState<string>('');
   const [branches, setBranches] = useState<{
     id: string;
     name: string;
@@ -1928,6 +1939,25 @@ export default function App() {
     });
   };
 
+  // Uploading while the temperature bucket has no active group would silently
+  // lose the files at the next switch (nothing to capture them into) — create
+  // a default group first so there's always somewhere for them to land. The
+  // user can rename it (e.g. to the angle it was taken at) afterwards.
+  const handleFileUploadIntoActiveBucket = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (activeBucket === 'temperature') {
+      const current = orientations.find(o => o.id === activeOrientationId);
+      const hasActiveGroup = current?.temperature.groups.some(g => g.id === activeTempGroupId);
+      if (!hasActiveGroup) {
+        const newId = `tg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        setOrientations(prev => prev.map(o => o.id === activeOrientationId
+          ? { ...o, temperature: { ...o.temperature, groups: [...o.temperature.groups, { id: newId, label: `Group ${o.temperature.groups.length + 1}`, files: [] }] } }
+          : o));
+        setActiveTempGroupId(newId);
+      }
+    }
+    handleFileUpload(event);
+  };
+
   // Remove a single uploaded file — index-shift selectedFileIndex, drop it
   // from the FFT-skip set, and bounce off its per-file detail tab if it was
   // the one showing.
@@ -2089,31 +2119,126 @@ export default function App() {
     if (data.prefixLocked !== undefined) setPrefixLocked(data.prefixLocked);
   }, []);
 
+  const emptyTemperatureBucket = (settings: Record<string, any> = {}): TemperatureBucket => ({ groups: [], settings });
+
+  // Snapshot (files, settings) into whichever bucket/group is currently live,
+  // for one orientation's entry — used before switching away from it (to
+  // another orientation, another bucket, another temperature group, or out to
+  // disk). No-ops safely if there's no active temperature group yet.
+  const captureActive = useCallback((o: OrientationEntry, outgoingSettings: Record<string, any>): OrientationEntry => {
+    if (activeBucket === 'angle') {
+      return { ...o, angle: { files, settings: outgoingSettings } };
+    }
+    return {
+      ...o,
+      temperature: {
+        settings: outgoingSettings,
+        groups: o.temperature.groups.map(g => g.id === activeTempGroupId ? { ...g, files } : g),
+      },
+    };
+  }, [activeBucket, activeTempGroupId, files]);
+
+  const loadAngleBucket = useCallback((bucket: FileBucket | undefined) => {
+    setFiles(bucket?.files ?? []);
+    if (bucket?.settings) applySettingsSnapshot(bucket.settings);
+  }, [applySettingsSnapshot]);
+
+  // Loads a temperature bucket, preferring `preferredGroupId` if it still
+  // exists in it, else its first group, else empty (no groups yet).
+  const loadTemperatureBucket = useCallback((bucket: TemperatureBucket | undefined, preferredGroupId?: string) => {
+    if (bucket?.settings) applySettingsSnapshot(bucket.settings);
+    const group = bucket?.groups.find(g => g.id === preferredGroupId) ?? bucket?.groups[0];
+    setActiveTempGroupId(group?.id ?? '');
+    setFiles(group?.files ?? []);
+  }, [applySettingsSnapshot]);
+
   const switchOrientation = useCallback((targetId: string) => {
     if (targetId === activeOrientationId) return;
     const outgoingSettings = getSettingsSnapshot();
     const target = orientations.find(o => o.id === targetId);
-    setOrientations(prev => prev.map(o => o.id === activeOrientationId ? { ...o, files, settings: outgoingSettings, mode: orientationMode } : o));
+    setOrientations(prev => prev.map(o => o.id === activeOrientationId ? captureActive(o, outgoingSettings) : o));
     if (target) {
-      setFiles(target.files);
-      applySettingsSnapshot(target.settings);
-      setOrientationMode(target.mode ?? 'angle');
+      if (activeBucket === 'angle') loadAngleBucket(target.angle);
+      else loadTemperatureBucket(target.temperature);
     }
     setActiveOrientationId(targetId);
     setActiveTab('dashboard');
-  }, [activeOrientationId, orientations, files, orientationMode, getSettingsSnapshot, applySettingsSnapshot]);
+  }, [activeOrientationId, orientations, activeBucket, getSettingsSnapshot, captureActive, loadAngleBucket, loadTemperatureBucket]);
+
+  // Switch which sweep type (angle vs temperature) is loaded for the SAME
+  // orientation — the two buckets are independent file sets + settings.
+  const switchBucket = useCallback((targetBucket: 'angle' | 'temperature') => {
+    if (targetBucket === activeBucket) return;
+    const outgoingSettings = getSettingsSnapshot();
+    const current = orientations.find(o => o.id === activeOrientationId);
+    setOrientations(prev => prev.map(o => o.id === activeOrientationId ? captureActive(o, outgoingSettings) : o));
+    if (current) {
+      if (targetBucket === 'angle') loadAngleBucket(current.angle);
+      else loadTemperatureBucket(current.temperature, activeTempGroupId);
+    }
+    setActiveBucket(targetBucket);
+    const angleOnlyTabs = new Set(['torque', 'landau', 'harmonics', 'symmetry', 'branch']);
+    if (targetBucket === 'temperature' && angleOnlyTabs.has(activeTab)) setActiveTab('dashboard');
+  }, [activeBucket, activeOrientationId, orientations, activeTempGroupId, getSettingsSnapshot, captureActive, loadAngleBucket, loadTemperatureBucket, activeTab]);
+
+  // ---- Temperature-sweep groups (multiple fixed-angle T-sweeps per orientation) ----
+  const addTemperatureGroup = useCallback((label: string) => {
+    const newId = `tg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const outgoingSettings = getSettingsSnapshot();
+    setOrientations(prev => prev.map(o => {
+      if (o.id !== activeOrientationId) return o;
+      const groups = o.temperature.groups.map(g => g.id === activeTempGroupId ? { ...g, files } : g);
+      return { ...o, temperature: { settings: outgoingSettings, groups: [...groups, { id: newId, label: label || `Group ${groups.length + 1}`, files: [] }] } };
+    }));
+    setFiles([]);
+    setActiveTempGroupId(newId);
+  }, [activeOrientationId, activeTempGroupId, files, getSettingsSnapshot]);
+
+  const switchTemperatureGroup = useCallback((targetId: string) => {
+    if (targetId === activeTempGroupId) return;
+    const outgoingSettings = getSettingsSnapshot();
+    const current = orientations.find(o => o.id === activeOrientationId);
+    const targetGroup = current?.temperature.groups.find(g => g.id === targetId);
+    setOrientations(prev => prev.map(o => o.id === activeOrientationId
+      ? { ...o, temperature: { settings: outgoingSettings, groups: o.temperature.groups.map(g => g.id === activeTempGroupId ? { ...g, files } : g) } }
+      : o));
+    setFiles(targetGroup?.files ?? []);
+    setActiveTempGroupId(targetId);
+  }, [activeOrientationId, activeTempGroupId, orientations, files, getSettingsSnapshot]);
+
+  const renameTemperatureGroup = useCallback((id: string, label: string) => {
+    setOrientations(prev => prev.map(o => o.id === activeOrientationId
+      ? { ...o, temperature: { ...o.temperature, groups: o.temperature.groups.map(g => g.id === id ? { ...g, label } : g) } }
+      : o));
+  }, [activeOrientationId]);
+
+  const removeTemperatureGroup = useCallback((id: string) => {
+    const current = orientations.find(o => o.id === activeOrientationId);
+    const remaining = (current?.temperature.groups ?? []).filter(g => g.id !== id);
+    setOrientations(prev => prev.map(o => o.id === activeOrientationId ? { ...o, temperature: { ...o.temperature, groups: remaining } } : o));
+    if (id === activeTempGroupId) {
+      setFiles(remaining[0]?.files ?? []);
+      setActiveTempGroupId(remaining[0]?.id ?? '');
+    }
+  }, [orientations, activeOrientationId, activeTempGroupId]);
 
   const addOrientation = useCallback((label: string) => {
     const newId = `ori-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const outgoingSettings = getSettingsSnapshot();
     setOrientations(prev => [
-      ...prev.map(o => o.id === activeOrientationId ? { ...o, files, settings: outgoingSettings, mode: orientationMode } : o),
-      { id: newId, label: label || `Orientation ${prev.length + 1}`, files: [], settings: outgoingSettings, mode: orientationMode },
+      ...prev.map(o => o.id === activeOrientationId ? captureActive(o, outgoingSettings) : o),
+      {
+        id: newId, label: label || `Orientation ${prev.length + 1}`,
+        angle: { files: [], settings: outgoingSettings },
+        temperature: emptyTemperatureBucket(outgoingSettings),
+      },
     ]);
     setFiles([]);
+    setActiveBucket('angle');
+    setActiveTempGroupId('');
     setActiveOrientationId(newId);
     setActiveTab('dashboard');
-  }, [activeOrientationId, files, orientationMode, getSettingsSnapshot]);
+  }, [activeOrientationId, getSettingsSnapshot, captureActive]);
 
   const renameOrientation = useCallback((id: string, label: string) => {
     setOrientations(prev => prev.map(o => o.id === id ? { ...o, label } : o));
@@ -2123,30 +2248,33 @@ export default function App() {
     const remaining = orientations.filter(o => o.id !== id);
     if (id !== activeOrientationId) { setOrientations(remaining); return; }
     if (remaining.length > 0) {
-      setFiles(remaining[0].files);
-      applySettingsSnapshot(remaining[0].settings);
-      setOrientationMode(remaining[0].mode ?? 'angle');
+      if (activeBucket === 'angle') loadAngleBucket(remaining[0].angle);
+      else loadTemperatureBucket(remaining[0].temperature);
       setActiveOrientationId(remaining[0].id);
       setOrientations(remaining);
     } else {
       const newId = `ori-${Date.now()}`;
+      const settings = getSettingsSnapshot();
       setFiles([]);
-      setOrientationMode('angle');
+      setActiveBucket('angle');
+      setActiveTempGroupId('');
       setActiveOrientationId(newId);
-      setOrientations([{ id: newId, label: 'Orientation 1', files: [], settings: getSettingsSnapshot(), mode: 'angle' }]);
+      setOrientations([{ id: newId, label: 'Orientation 1', angle: { files: [], settings }, temperature: emptyTemperatureBucket(settings) }]);
     }
-  }, [orientations, activeOrientationId, applySettingsSnapshot, getSettingsSnapshot]);
+  }, [orientations, activeOrientationId, activeBucket, loadAngleBucket, loadTemperatureBucket, getSettingsSnapshot]);
 
   // Full-session export: every orientation's raw files + processed results +
   // settings, as one local JSON file named after the sample ID.
   const saveSessionToFile = useCallback(() => {
     if (!sampleId) return;
     const outgoingSettings = getSettingsSnapshot();
-    const finalOrientations = orientations.map(o => o.id === activeOrientationId ? { ...o, files, settings: outgoingSettings, mode: orientationMode } : o);
+    const finalOrientations = orientations.map(o => o.id === activeOrientationId ? captureActive(o, outgoingSettings) : o);
     const payload = {
-      version: 1,
+      version: 3,
       sampleId,
       activeOrientationId,
+      activeBucket,
+      activeTempGroupId,
       orientations: finalOrientations,
       savedAt: new Date().toISOString(),
     };
@@ -2158,7 +2286,7 @@ export default function App() {
     a.download = `${sampleId.replace(/[^a-zA-Z0-9_-]+/g, '_') || 'sample'}_session.json`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [sampleId, orientations, activeOrientationId, files, orientationMode, getSettingsSnapshot]);
+  }, [sampleId, orientations, activeOrientationId, activeBucket, activeTempGroupId, getSettingsSnapshot, captureActive]);
 
   const loadSessionFromFile = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const f = event.target.files?.[0];
@@ -2171,16 +2299,35 @@ export default function App() {
         if (!payload || !Array.isArray(payload.orientations) || payload.orientations.length === 0) {
           throw new Error('empty session');
         }
-        const normalized: OrientationEntry[] = payload.orientations.map((o: any) => ({ ...o, mode: o.mode === 'temperature' ? 'temperature' : 'angle' }));
+        // v1: one flat {files,settings,mode} per orientation.
+        // v2: {angle: FileBucket, temperature: FileBucket} — one flat temperature file list.
+        // v3 (current): temperature is {groups: TemperatureSweepGroup[], settings}.
+        const normalized: OrientationEntry[] = payload.orientations.map((o: any) => {
+          const angle: FileBucket = o.angle ?? { files: o.mode === 'temperature' ? [] : (o.files ?? []), settings: o.mode === 'temperature' ? {} : (o.settings ?? {}) };
+          let temperature: TemperatureBucket;
+          if (o.temperature?.groups) {
+            temperature = o.temperature;
+          } else if (o.temperature) {
+            // v2 flat bucket -> a single unnamed group
+            const t = o.temperature as { files: FileEntry[]; settings: Record<string, any> };
+            temperature = { settings: t.settings ?? {}, groups: t.files?.length ? [{ id: `tg-${o.id}`, label: 'Group 1', files: t.files }] : [] };
+          } else if (o.mode === 'temperature' && o.files) {
+            temperature = { settings: o.settings ?? {}, groups: [{ id: `tg-${o.id}`, label: 'Group 1', files: o.files }] };
+          } else {
+            temperature = { settings: {}, groups: [] };
+          }
+          return { id: o.id, label: o.label, angle, temperature };
+        });
         const activeId = payload.activeOrientationId && normalized.some((o) => o.id === payload.activeOrientationId)
           ? payload.activeOrientationId
           : normalized[0].id;
         const active = normalized.find((o) => o.id === activeId);
+        const bucket: 'angle' | 'temperature' = payload.activeBucket === 'temperature' ? 'temperature' : 'angle';
         setOrientations(normalized);
         setActiveOrientationId(activeId);
-        setFiles(active?.files ?? []);
-        if (active?.settings) applySettingsSnapshot(active.settings);
-        setOrientationMode(active?.mode ?? 'angle');
+        setActiveBucket(bucket);
+        if (bucket === 'angle') loadAngleBucket(active?.angle);
+        else loadTemperatureBucket(active?.temperature, payload.activeTempGroupId);
         setSampleId(payload.sampleId || 'Untitled');
         setActiveTab('dashboard');
         setError(null);
@@ -2189,7 +2336,7 @@ export default function App() {
       }
     };
     reader.readAsText(f);
-  }, [applySettingsSnapshot]);
+  }, [loadAngleBucket, loadTemperatureBucket]);
 
   // Process All runs with the settings as they were last applied — staged
   // sidebar edits need "Apply All Settings" first.
@@ -2904,7 +3051,12 @@ export default function App() {
       const id = sampleIdDraft.trim();
       if (!id) return;
       const firstId = `ori-${Date.now()}`;
-      setOrientations([{ id: firstId, label: 'Orientation 1', files: [], settings: getSettingsSnapshot(), mode: 'angle' }]);
+      const blankSettings = getSettingsSnapshot();
+      setOrientations([{
+        id: firstId, label: 'Orientation 1',
+        angle: { files: [], settings: blankSettings },
+        temperature: { groups: [], settings: blankSettings },
+      }]);
       setActiveOrientationId(firstId);
       setSampleId(id);
     };
@@ -3045,7 +3197,7 @@ export default function App() {
           <label className="cursor-pointer bg-[#141414] text-[#E4E3E0] px-6 py-3 rounded-none hover:bg-opacity-90 transition-all flex items-center gap-2 font-mono text-sm uppercase tracking-wider">
             <Upload size={16} />
             {files.length > 0 ? 'Change Files' : 'Upload Data'}
-            <input type="file" accept=".csv,.dat,.txt" onChange={handleFileUpload} className="hidden" multiple />
+            <input type="file" accept=".csv,.dat,.txt" onChange={handleFileUploadIntoActiveBucket} className="hidden" multiple />
           </label>
         </div>
       </header>
@@ -3146,23 +3298,19 @@ export default function App() {
           )}
         </div>
 
-        <div className="flex items-center gap-1 pl-3 border-l border-white/10" title="이 orientation의 데이터 종류">
-          <span className="text-[9px] font-mono uppercase opacity-40 mr-1">Mode</span>
+        <div className="flex items-center gap-1 pl-3 border-l border-white/10" title="이 orientation 안의 두 파일 세트 — 각도 스윕 / 온도 스윕은 서로 다른 파일·설정을 가짐">
+          <span className="text-[9px] font-mono uppercase opacity-40 mr-1">Files</span>
           {(['angle', 'temperature'] as const).map(m => (
             <button
               key={m}
-              onClick={() => {
-                setOrientationMode(m);
-                const angleOnlyTabs = new Set(['torque', 'landau', 'harmonics', 'symmetry', 'branch']);
-                if (m === 'temperature' && angleOnlyTabs.has(activeTab)) setActiveTab('dashboard');
-              }}
+              onClick={() => switchBucket(m)}
               className={`px-2 py-1 font-mono text-[9px] uppercase border transition-colors ${
-                orientationMode === m
+                activeBucket === m
                   ? 'border-[#F27D26] text-[#F27D26] bg-[#F27D26]/10'
                   : 'border-white/15 opacity-50 hover:opacity-100'
               }`}
             >
-              {m === 'angle' ? 'Angle-dep.' : 'Temp-dep.'}
+              {m === 'angle' ? 'Angle Sweep' : 'Temp Sweep'}
             </button>
           ))}
         </div>
@@ -3180,6 +3328,92 @@ export default function App() {
         </div>
       </div>
 
+      {/* Temperature-sweep groups: several fixed-angle T-sweeps can live side
+          by side inside the same orientation's temperature bucket. */}
+      {activeBucket === 'temperature' && (() => {
+        const currentOrientation = orientations.find(o => o.id === activeOrientationId);
+        const groups = currentOrientation?.temperature.groups ?? [];
+        return (
+          <div className="max-w-7xl mx-auto mb-4 flex items-center gap-2 flex-wrap bg-white/50 border border-[#141414]/10 px-4 py-2">
+            <span className="text-[9px] font-mono uppercase opacity-40">T-Sweep Set (angle)</span>
+            {groups.map(g => (
+              <div key={g.id} className="group relative">
+                {editingTempGroupId === g.id ? (
+                  <input
+                    type="text"
+                    autoFocus
+                    value={editTempGroupLabelDraft}
+                    onChange={(e) => setEditTempGroupLabelDraft(e.target.value)}
+                    onBlur={() => { const v = editTempGroupLabelDraft.trim(); if (v) renameTemperatureGroup(g.id, v); setEditingTempGroupId(null); }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { const v = editTempGroupLabelDraft.trim(); if (v) renameTemperatureGroup(g.id, v); setEditingTempGroupId(null); }
+                      if (e.key === 'Escape') setEditingTempGroupId(null);
+                    }}
+                    className="w-20 bg-white border border-[#F27D26] px-1.5 py-1 font-mono text-[10px] text-[#141414] focus:outline-none"
+                  />
+                ) : (
+                  <button
+                    onDoubleClick={() => { setEditingTempGroupId(g.id); setEditTempGroupLabelDraft(g.label); }}
+                    onClick={() => switchTemperatureGroup(g.id)}
+                    title="더블클릭으로 이름 변경 (예: 각도)"
+                    className={`px-2.5 py-1 font-mono text-[10px] uppercase border transition-colors ${
+                      g.id === activeTempGroupId
+                        ? 'border-[#F27D26] text-[#F27D26] bg-[#F27D26]/10'
+                        : 'border-[#141414]/20 opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    {g.label}
+                  </button>
+                )}
+                {editingTempGroupId !== g.id && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); if (window.confirm(`"${g.label}" T-sweep set을 제거할까요?`)) removeTemperatureGroup(g.id); }}
+                    title="제거"
+                    className="absolute -top-1.5 -right-1.5 hidden group-hover:flex items-center justify-center w-3.5 h-3.5 bg-red-600 text-white rounded-full"
+                  >
+                    <X size={9} />
+                  </button>
+                )}
+              </div>
+            ))}
+
+            {showAddTempGroup ? (
+              <div className="flex items-center gap-1">
+                <input
+                  type="text"
+                  autoFocus
+                  value={tempGroupLabelDraft}
+                  onChange={(e) => setTempGroupLabelDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { addTemperatureGroup(tempGroupLabelDraft.trim()); setTempGroupLabelDraft(''); setShowAddTempGroup(false); }
+                    if (e.key === 'Escape') { setTempGroupLabelDraft(''); setShowAddTempGroup(false); }
+                  }}
+                  placeholder="e.g. 15deg"
+                  className="w-20 bg-white border border-[#141414]/30 px-1.5 py-1 font-mono text-[10px] text-[#141414] focus:outline-none focus:border-[#F27D26]"
+                />
+                <button
+                  onClick={() => { addTemperatureGroup(tempGroupLabelDraft.trim()); setTempGroupLabelDraft(''); setShowAddTempGroup(false); }}
+                  className="px-1.5 py-1 font-mono text-[9px] uppercase border border-[#F27D26] text-[#F27D26]"
+                >
+                  <Check size={11} />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => { setTempGroupLabelDraft(`Group ${groups.length + 1}`); setShowAddTempGroup(true); }}
+                title="새 T-sweep set 추가 (다른 각도)"
+                className="px-1.5 py-1 border border-dashed border-[#141414]/20 opacity-50 hover:opacity-100 hover:border-[#141414]/40"
+              >
+                <Plus size={12} />
+              </button>
+            )}
+            {groups.length === 0 && (
+              <span className="text-[9px] font-mono opacity-30 italic">+ 를 눌러 첫 T-sweep set을 추가하세요 (각도별로 여러 개 가능)</span>
+            )}
+          </div>
+        );
+      })()}
+
       {/* Tabs Navigation */}
       {files.length > 0 && (
         <nav className="max-w-7xl mx-auto mb-8 flex items-center gap-0.5 overflow-x-auto no-scrollbar bg-white/50 border border-[#141414]/10 px-2">
@@ -3192,9 +3426,9 @@ export default function App() {
               ['lkfit', 'L-K Fit'], ['fftrange', 'FFT Range'],
             ];
             // Angle-dependent tools (Torque/Landau Fan/Harmonics/Symmetry/Branch)
-            // assume a BLM sweep at fixed T; a temperature-dependent orientation
-            // has no angle axis, so they'd just show noise — hide them there.
-            return orientationMode === 'temperature' ? allTabs.filter(([id]) => !angleOnlyTabs.has(id)) : allTabs;
+            // assume a BLM sweep at fixed T; the temperature-sweep bucket has no
+            // angle axis, so they'd just show noise — hide them while it's active.
+            return activeBucket === 'temperature' ? allTabs.filter(([id]) => !angleOnlyTabs.has(id)) : allTabs;
           })().map(([id, label]) => (
             <React.Fragment key={id}>
               {(id === 'raw' || id === 'torque') && <span className="w-px h-4 bg-[#141414]/15 mx-2 shrink-0" />}
@@ -6496,7 +6730,14 @@ export default function App() {
                 <div className="flex justify-between items-center mb-8 flex-wrap gap-4">
                   <div className="flex items-center gap-3">
                     <Activity size={24} className="text-[#F27D26]" />
-                    <h3 className="text-2xl font-serif italic font-bold">Lifshitz-Kosevich Mass Fit</h3>
+                    <div>
+                      <h3 className="text-2xl font-serif italic font-bold">Lifshitz-Kosevich Mass Fit</h3>
+                      {activeBucket === 'temperature' && (
+                        <p className="text-[10px] font-mono opacity-40 mt-0.5">
+                          T-Sweep Set: {orientations.find(o => o.id === activeOrientationId)?.temperature.groups.find(g => g.id === activeTempGroupId)?.label ?? '—'}
+                        </p>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-6 bg-white/5 px-6 py-3 border border-white/10 flex-wrap">
                     <div className="flex flex-col gap-1">
