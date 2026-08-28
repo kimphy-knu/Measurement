@@ -2007,7 +2007,6 @@ export default function App() {
                     return next;
                   });
                   setIsProcessing(false);
-                  setAutoSaveTick(t => t + 1);
                   return;
                 }
                 const firstKeys = newFiles[0].columns;
@@ -2117,7 +2116,6 @@ export default function App() {
                   );
                   setSelectedPrefix(covering.length > 0 ? covering[0] : '');
                 }
-                setAutoSaveTick(t => t + 1);
               } else {
                 setError("No valid data found in selected files.");
               }
@@ -2460,44 +2458,137 @@ export default function App() {
 
   // Full-session export: every orientation's raw files + processed results +
   // settings, as one local JSON file named after the sample ID.
-  const saveSessionToFile = useCallback(() => {
-    if (!sampleId) return;
+  // FFT/plotData/detectedPeaks are all cheaply regenerable from raw data +
+  // settings via "Process All" — they're also the bulk of a processed
+  // dataset's size (a full spectrum per column per file). Stripping them
+  // before serializing keeps the saved file small and JSON.stringify fast;
+  // the live `orientations` state (used by the charts on screen) is
+  // untouched. Reloading a session just needs one "Process All" click to
+  // regenerate everything.
+  const stripResultsForSave = (files: FileEntry[]): FileEntry[] => files.map(f => ({ ...f, results: [] }));
+
+  const buildSessionPayload = useCallback(() => {
     const outgoingSettings = getSettingsSnapshot();
     const finalOrientations = orientations.map(o => o.id === activeOrientationId ? captureActive(o, outgoingSettings) : o);
+    const serializable = finalOrientations.map(o => ({
+      ...o,
+      angle: { ...o.angle, files: stripResultsForSave(o.angle.files) },
+      temperature: { ...o.temperature, groups: o.temperature.groups.map(g => ({ ...g, files: stripResultsForSave(g.files) })) },
+    }));
     const payload = {
       version: 3,
       sampleId,
       activeOrientationId,
       activeBucket,
       activeTempGroupId,
-      orientations: finalOrientations,
+      orientations: serializable,
       savedAt: new Date().toISOString(),
     };
-    setOrientations(finalOrientations);
+    return { payload, finalOrientations };
+  }, [sampleId, orientations, activeOrientationId, activeBucket, activeTempGroupId, getSettingsSnapshot, captureActive]);
+
+  // Once the user has saved or loaded via the native file picker, this holds
+  // a writable handle to that exact file, so later saves overwrite it in
+  // place instead of downloading a new copy each time. Chromium-only
+  // (File System Access API); falls back to a plain download elsewhere. Not
+  // persisted across reloads — a fresh page load needs one manual Save/Load
+  // to (re)establish the link.
+  const sessionFileHandleRef = useRef<any>(null);
+  const [linkedSessionFileName, setLinkedSessionFileName] = useState<string | null>(null);
+  const supportsFileSystemAccess = typeof window !== 'undefined' && typeof (window as any).showSaveFilePicker === 'function';
+
+  const downloadSessionBlob = (payload: any) => {
     const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${sampleId.replace(/[^a-zA-Z0-9_-]+/g, '_') || 'sample'}_session.json`;
+    a.download = `${(sampleId || 'sample').replace(/[^a-zA-Z0-9_-]+/g, '_')}_session.json`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [sampleId, orientations, activeOrientationId, activeBucket, activeTempGroupId, getSettingsSnapshot, captureActive]);
+  };
 
-  // Auto-save-to-download after the two actions that actually add work worth
-  // not losing (adding files, running Process All) — not on every `files`
-  // change, since switching orientations/buckets also touches `files` and
-  // that's just navigation, nothing new to protect. Bumping the tick and
-  // saving from a useEffect (rather than calling saveSessionToFile directly
-  // at the call site) means the save always sees the just-committed `files`
-  // state instead of the stale pre-update closure.
-  const [autoSaveTick, setAutoSaveTick] = useState(0);
-  const saveSessionToFileRef = useRef(saveSessionToFile);
-  saveSessionToFileRef.current = saveSessionToFile;
-  useEffect(() => {
-    if (autoSaveTick === 0) return;
-    saveSessionToFileRef.current();
-  }, [autoSaveTick]);
+  // Manual save (button click only — never called automatically). Writes to
+  // the linked file if one exists; otherwise offers the native "Save As"
+  // picker to establish one (Chromium), or falls back to a download.
+  const saveSessionToFile = useCallback(async () => {
+    if (!sampleId) return;
+    const { payload, finalOrientations } = buildSessionPayload();
+    setOrientations(finalOrientations);
+    const json = JSON.stringify(payload);
 
+    if (sessionFileHandleRef.current) {
+      try {
+        const writable = await sessionFileHandleRef.current.createWritable();
+        await writable.write(json);
+        await writable.close();
+        return;
+      } catch {
+        // Handle went stale (file moved/permission revoked) — fall through
+        // to re-establishing one below.
+        sessionFileHandleRef.current = null;
+        setLinkedSessionFileName(null);
+      }
+    }
+
+    if (supportsFileSystemAccess) {
+      try {
+        const handle = await (window as any).showSaveFilePicker({
+          suggestedName: `${sampleId.replace(/[^a-zA-Z0-9_-]+/g, '_')}_session.json`,
+          types: [{ description: 'Session JSON', accept: { 'application/json': ['.json'] } }],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(json);
+        await writable.close();
+        sessionFileHandleRef.current = handle;
+        setLinkedSessionFileName(handle.name);
+        return;
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return; // user cancelled the picker
+        // Fall through to the download fallback below.
+      }
+    }
+    downloadSessionBlob(payload);
+  }, [sampleId, supportsFileSystemAccess, buildSessionPayload]);
+
+  const applyLoadedSession = useCallback((payload: any) => {
+    if (!payload || !Array.isArray(payload.orientations) || payload.orientations.length === 0) {
+      throw new Error('empty session');
+    }
+    // v1: one flat {files,settings,mode} per orientation.
+    // v2: {angle: FileBucket, temperature: FileBucket} — one flat temperature file list.
+    // v3 (current): temperature is {groups: TemperatureSweepGroup[], settings}.
+    const normalized: OrientationEntry[] = payload.orientations.map((o: any) => {
+      const angle: FileBucket = o.angle ?? { files: o.mode === 'temperature' ? [] : (o.files ?? []), settings: o.mode === 'temperature' ? {} : (o.settings ?? {}) };
+      let temperature: TemperatureBucket;
+      if (o.temperature?.groups) {
+        temperature = o.temperature;
+      } else if (o.temperature) {
+        // v2 flat bucket -> a single unnamed group
+        const t = o.temperature as { files: FileEntry[]; settings: Record<string, any> };
+        temperature = { settings: t.settings ?? {}, groups: t.files?.length ? [{ id: `tg-${o.id}`, label: 'Group 1', files: t.files }] : [] };
+      } else if (o.mode === 'temperature' && o.files) {
+        temperature = { settings: o.settings ?? {}, groups: [{ id: `tg-${o.id}`, label: 'Group 1', files: o.files }] };
+      } else {
+        temperature = { settings: {}, groups: [] };
+      }
+      return { id: o.id, label: o.label, angle, temperature };
+    });
+    const activeId = payload.activeOrientationId && normalized.some((o) => o.id === payload.activeOrientationId)
+      ? payload.activeOrientationId
+      : normalized[0].id;
+    const active = normalized.find((o) => o.id === activeId);
+    const bucket: 'angle' | 'temperature' = payload.activeBucket === 'temperature' ? 'temperature' : 'angle';
+    setOrientations(normalized);
+    setActiveOrientationId(activeId);
+    setActiveBucket(bucket);
+    if (bucket === 'angle') loadAngleBucket(active?.angle);
+    else loadTemperatureBucket(active?.temperature, payload.activeTempGroupId);
+    setSampleId(payload.sampleId || 'Untitled');
+    setActiveTab('dashboard');
+    setError(null);
+  }, [loadAngleBucket, loadTemperatureBucket]);
+
+  // Fallback loader (any browser): plain <input type="file">, no write-back handle.
   const loadSessionFromFile = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const f = event.target.files?.[0];
     event.target.value = '';
@@ -2505,48 +2596,32 @@ export default function App() {
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
-        const payload = JSON.parse(String(ev.target?.result));
-        if (!payload || !Array.isArray(payload.orientations) || payload.orientations.length === 0) {
-          throw new Error('empty session');
-        }
-        // v1: one flat {files,settings,mode} per orientation.
-        // v2: {angle: FileBucket, temperature: FileBucket} — one flat temperature file list.
-        // v3 (current): temperature is {groups: TemperatureSweepGroup[], settings}.
-        const normalized: OrientationEntry[] = payload.orientations.map((o: any) => {
-          const angle: FileBucket = o.angle ?? { files: o.mode === 'temperature' ? [] : (o.files ?? []), settings: o.mode === 'temperature' ? {} : (o.settings ?? {}) };
-          let temperature: TemperatureBucket;
-          if (o.temperature?.groups) {
-            temperature = o.temperature;
-          } else if (o.temperature) {
-            // v2 flat bucket -> a single unnamed group
-            const t = o.temperature as { files: FileEntry[]; settings: Record<string, any> };
-            temperature = { settings: t.settings ?? {}, groups: t.files?.length ? [{ id: `tg-${o.id}`, label: 'Group 1', files: t.files }] : [] };
-          } else if (o.mode === 'temperature' && o.files) {
-            temperature = { settings: o.settings ?? {}, groups: [{ id: `tg-${o.id}`, label: 'Group 1', files: o.files }] };
-          } else {
-            temperature = { settings: {}, groups: [] };
-          }
-          return { id: o.id, label: o.label, angle, temperature };
-        });
-        const activeId = payload.activeOrientationId && normalized.some((o) => o.id === payload.activeOrientationId)
-          ? payload.activeOrientationId
-          : normalized[0].id;
-        const active = normalized.find((o) => o.id === activeId);
-        const bucket: 'angle' | 'temperature' = payload.activeBucket === 'temperature' ? 'temperature' : 'angle';
-        setOrientations(normalized);
-        setActiveOrientationId(activeId);
-        setActiveBucket(bucket);
-        if (bucket === 'angle') loadAngleBucket(active?.angle);
-        else loadTemperatureBucket(active?.temperature, payload.activeTempGroupId);
-        setSampleId(payload.sampleId || 'Untitled');
-        setActiveTab('dashboard');
-        setError(null);
+        applyLoadedSession(JSON.parse(String(ev.target?.result)));
       } catch {
         setError('세션 파일을 불러오지 못했습니다 — 형식이 올바르지 않습니다.');
       }
     };
     reader.readAsText(f);
-  }, [loadAngleBucket, loadTemperatureBucket]);
+  }, [applyLoadedSession]);
+
+  // Chromium loader: native "Open" picker, keeps the handle so later Save
+  // Session calls overwrite this exact file instead of downloading a copy.
+  const loadSessionViaPicker = useCallback(async () => {
+    if (!supportsFileSystemAccess) return;
+    try {
+      const [handle] = await (window as any).showOpenFilePicker({
+        types: [{ description: 'Session JSON', accept: { 'application/json': ['.json'] } }],
+      });
+      const file = await handle.getFile();
+      const text = await file.text();
+      applyLoadedSession(JSON.parse(text));
+      sessionFileHandleRef.current = handle;
+      setLinkedSessionFileName(handle.name);
+    } catch (err: any) {
+      if (err?.name === 'AbortError') return;
+      setError('세션 파일을 불러오지 못했습니다 — 형식이 올바르지 않습니다.');
+    }
+  }, [supportsFileSystemAccess, applyLoadedSession]);
 
   // Process All runs with the settings as they were last applied — staged
   // sidebar edits need "Apply All Settings" first.
@@ -2907,7 +2982,6 @@ export default function App() {
         
         // Auto-run branch analysis after processing all
         runBranchAnalysis(summary);
-        setAutoSaveTick(t => t + 1);
       } catch (err) {
         setError("Error during batch processing: " + (err instanceof Error ? err.message : String(err)));
       } finally {
@@ -3301,11 +3375,21 @@ export default function App() {
             <div className="h-px bg-white/10 flex-1" />
           </div>
 
-          <label className="w-full cursor-pointer flex items-center justify-center gap-2 border border-white/20 py-3 font-mono text-xs uppercase tracking-widest hover:bg-white/5 transition-all">
-            <FolderOpen size={14} />
-            Load Session File
-            <input type="file" accept=".json" onChange={loadSessionFromFile} className="hidden" />
-          </label>
+          {supportsFileSystemAccess ? (
+            <button
+              onClick={loadSessionViaPicker}
+              className="w-full flex items-center justify-center gap-2 border border-white/20 py-3 font-mono text-xs uppercase tracking-widest hover:bg-white/5 transition-all"
+            >
+              <FolderOpen size={14} />
+              Load Session File
+            </button>
+          ) : (
+            <label className="w-full cursor-pointer flex items-center justify-center gap-2 border border-white/20 py-3 font-mono text-xs uppercase tracking-widest hover:bg-white/5 transition-all">
+              <FolderOpen size={14} />
+              Load Session File
+              <input type="file" accept=".json" onChange={loadSessionFromFile} className="hidden" />
+            </label>
+          )}
           {error && <p className="mt-4 text-[11px] font-mono text-red-400">{error}</p>}
         </div>
       </div>
@@ -3527,15 +3611,30 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-2 pl-3 border-l border-white/10">
-          <button onClick={saveSessionToFile} title="샘플 전체(raw+결과+설정)를 로컬 JSON 파일로 저장"
+          {linkedSessionFileName && (
+            <span className="text-[8px] font-mono opacity-40 max-w-[140px] truncate" title={`저장/불러오기 시 이 파일에 덮어씁니다: ${linkedSessionFileName}`}>
+              🔗 {linkedSessionFileName}
+            </span>
+          )}
+          <button onClick={saveSessionToFile} title={linkedSessionFileName ? `"${linkedSessionFileName}" 파일에 덮어씁니다` : '샘플 전체(raw+설정)를 로컬 JSON 파일로 저장'}
             className="px-2 py-1 font-mono text-[9px] uppercase border border-white/15 hover:bg-white/5 flex items-center gap-1">
             <Save size={11} />Save Session
           </button>
-          <label title="저장된 세션 파일 불러오기 (현재 작업을 덮어씁니다)"
-            className="cursor-pointer px-2 py-1 font-mono text-[9px] uppercase border border-white/15 hover:bg-white/5 flex items-center gap-1">
-            <FolderOpen size={11} />Load Session
-            <input type="file" accept=".json" onChange={(e) => { if (window.confirm('현재 작업을 덮어씁니다. 계속할까요?')) loadSessionFromFile(e); else e.target.value = ''; }} className="hidden" />
-          </label>
+          {supportsFileSystemAccess ? (
+            <button
+              onClick={() => { if (window.confirm('현재 작업을 덮어씁니다. 계속할까요?')) loadSessionViaPicker(); }}
+              title="세션 파일 불러오기 (현재 작업을 덮어씁니다) — 이후 Save는 이 파일에 바로 덮어씁니다"
+              className="px-2 py-1 font-mono text-[9px] uppercase border border-white/15 hover:bg-white/5 flex items-center gap-1"
+            >
+              <FolderOpen size={11} />Load Session
+            </button>
+          ) : (
+            <label title="저장된 세션 파일 불러오기 (현재 작업을 덮어씁니다)"
+              className="cursor-pointer px-2 py-1 font-mono text-[9px] uppercase border border-white/15 hover:bg-white/5 flex items-center gap-1">
+              <FolderOpen size={11} />Load Session
+              <input type="file" accept=".json" onChange={(e) => { if (window.confirm('현재 작업을 덮어씁니다. 계속할까요?')) loadSessionFromFile(e); else e.target.value = ''; }} className="hidden" />
+            </label>
+          )}
         </div>
       </div>
 
