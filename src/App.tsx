@@ -64,7 +64,7 @@ import {
 } from './lib/dsp';
 import {
   oscillationOnsetB, OSC_SCORE_MIN, OSC_WINDOW_FRAC, angleFromFileName,
-  guessFieldColumn, splitSweepDirections, fileSignalColumns,
+  guessFieldColumn, splitSweepDirections, fileSignalColumns, fileOscillationScore,
   computeLandauFan, landauSpectrumAndFilter,
 } from './lib/landau';
 import { MiniFFT } from './components/MiniFFT';
@@ -1987,7 +1987,29 @@ export default function App() {
             filesProcessed++;
             if (filesProcessed === fileList.length) {
               if (newFiles.length > 0) {
-                setFiles(newFiles);
+                // Adding to an already-populated set: append the new files,
+                // score them for the FFT-inclusion checklist, and leave every
+                // other setting (columns, B-range, prefix) exactly as the user
+                // already has it — only a from-empty upload gets to redetect
+                // all of that below.
+                const wasEmpty = files.length === 0;
+                setFiles(prev => [...prev, ...newFiles]);
+                if (!wasEmpty) {
+                  const scores: Record<string, number> = {};
+                  newFiles.forEach(f => {
+                    const bk = resolveBCol(f);
+                    scores[f.id] = fileOscillationScore(f, bk).score;
+                  });
+                  setOscScores(prev => ({ ...prev, ...scores }));
+                  setFftSkip(prev => {
+                    const next = new Set(prev);
+                    newFiles.forEach(f => { if (scores[f.id] < OSC_SCORE_MIN) next.add(f.id); });
+                    return next;
+                  });
+                  setIsProcessing(false);
+                  setAutoSaveTick(t => t + 1);
+                  return;
+                }
                 const firstKeys = newFiles[0].columns;
                 const bKey = guessFieldColumn(firstKeys);
                 setSelectedBColumn(bKey);
@@ -2095,6 +2117,7 @@ export default function App() {
                   );
                   setSelectedPrefix(covering.length > 0 ? covering[0] : '');
                 }
+                setAutoSaveTick(t => t + 1);
               } else {
                 setError("No valid data found in selected files.");
               }
@@ -2459,6 +2482,21 @@ export default function App() {
     a.click();
     URL.revokeObjectURL(url);
   }, [sampleId, orientations, activeOrientationId, activeBucket, activeTempGroupId, getSettingsSnapshot, captureActive]);
+
+  // Auto-save-to-download after the two actions that actually add work worth
+  // not losing (adding files, running Process All) — not on every `files`
+  // change, since switching orientations/buckets also touches `files` and
+  // that's just navigation, nothing new to protect. Bumping the tick and
+  // saving from a useEffect (rather than calling saveSessionToFile directly
+  // at the call site) means the save always sees the just-committed `files`
+  // state instead of the stale pre-update closure.
+  const [autoSaveTick, setAutoSaveTick] = useState(0);
+  const saveSessionToFileRef = useRef(saveSessionToFile);
+  saveSessionToFileRef.current = saveSessionToFile;
+  useEffect(() => {
+    if (autoSaveTick === 0) return;
+    saveSessionToFileRef.current();
+  }, [autoSaveTick]);
 
   const loadSessionFromFile = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const f = event.target.files?.[0];
@@ -2869,6 +2907,7 @@ export default function App() {
         
         // Auto-run branch analysis after processing all
         runBranchAnalysis(summary);
+        setAutoSaveTick(t => t + 1);
       } catch (err) {
         setError("Error during batch processing: " + (err instanceof Error ? err.message : String(err)));
       } finally {
@@ -3368,7 +3407,7 @@ export default function App() {
           )}
           <label className="cursor-pointer bg-[#141414] text-[#E4E3E0] px-6 py-3 rounded-none hover:bg-opacity-90 transition-all flex items-center gap-2 font-mono text-sm uppercase tracking-wider">
             <Upload size={16} />
-            {files.length > 0 ? 'Change Files' : 'Upload Data'}
+            {files.length > 0 ? 'Add Files' : 'Upload Data'}
             <input type="file" accept=".csv,.dat,.txt" onChange={handleFileUploadIntoActiveBucket} className="hidden" multiple />
           </label>
         </div>
