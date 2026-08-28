@@ -1,0 +1,5 @@
+{
+  "name": "Quantum Oscillation Analysis Dashboard",
+  "description": "A comprehensive tool for analyzing quantum oscillations using FFT and effective mass extraction.",
+  "requestFramePermissions": []
+}
