@@ -2496,6 +2496,12 @@ export default function App() {
   const sessionFileHandleRef = useRef<any>(null);
   const [linkedSessionFileName, setLinkedSessionFileName] = useState<string | null>(null);
   const supportsFileSystemAccess = typeof window !== 'undefined' && typeof (window as any).showSaveFilePicker === 'function';
+  // Visible confirmation that each click actually did something — a silent
+  // handle-overwrite (no dialog, unlike the first save) gave no feedback at
+  // all, which read as "only the first save works" even when later saves
+  // were succeeding.
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
 
   const downloadSessionBlob = (payload: any) => {
     const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
@@ -2507,20 +2513,37 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
+  // Chrome can silently drop a handle's write permission (tab backgrounded a
+  // while, browser restart, etc.) — re-request before trusting it instead of
+  // finding out via a thrown error from createWritable().
+  const ensureWritePermission = async (handle: any): Promise<boolean> => {
+    if (typeof handle.queryPermission !== 'function') return true; // older/partial impl — just try the write
+    const opts = { mode: 'readwrite' as const };
+    if ((await handle.queryPermission(opts)) === 'granted') return true;
+    if (typeof handle.requestPermission !== 'function') return false;
+    return (await handle.requestPermission(opts)) === 'granted';
+  };
+
   // Manual save (button click only — never called automatically). Writes to
   // the linked file if one exists; otherwise offers the native "Save As"
   // picker to establish one (Chromium), or falls back to a download.
   const saveSessionToFile = useCallback(async () => {
     if (!sampleId) return;
+    setSaveStatus('saving');
     const { payload, finalOrientations } = buildSessionPayload();
     setOrientations(finalOrientations);
     const json = JSON.stringify(payload);
 
     if (sessionFileHandleRef.current) {
       try {
+        if (!(await ensureWritePermission(sessionFileHandleRef.current))) {
+          throw new Error('write permission not granted');
+        }
         const writable = await sessionFileHandleRef.current.createWritable();
         await writable.write(json);
         await writable.close();
+        setSaveStatus('saved');
+        setLastSavedAt(new Date());
         return;
       } catch {
         // Handle went stale (file moved/permission revoked) — fall through
@@ -2541,13 +2564,22 @@ export default function App() {
         await writable.close();
         sessionFileHandleRef.current = handle;
         setLinkedSessionFileName(handle.name);
+        setSaveStatus('saved');
+        setLastSavedAt(new Date());
         return;
       } catch (err: any) {
-        if (err?.name === 'AbortError') return; // user cancelled the picker
+        if (err?.name === 'AbortError') { setSaveStatus('idle'); return; } // user cancelled the picker
         // Fall through to the download fallback below.
       }
     }
-    downloadSessionBlob(payload);
+    try {
+      downloadSessionBlob(payload);
+      setSaveStatus('saved');
+      setLastSavedAt(new Date());
+    } catch {
+      setSaveStatus('error');
+      setError('세션을 저장하지 못했습니다.');
+    }
   }, [sampleId, supportsFileSystemAccess, buildSessionPayload]);
 
   const applyLoadedSession = useCallback((payload: any) => {
@@ -3511,6 +3543,10 @@ export default function App() {
                 setOrientations([]);
                 setActiveOrientationId('');
                 setFiles([]);
+                sessionFileHandleRef.current = null;
+                setLinkedSessionFileName(null);
+                setSaveStatus('idle');
+                setLastSavedAt(null);
               }
             }}
             className="opacity-40 hover:opacity-100 p-0.5"
@@ -3618,8 +3654,14 @@ export default function App() {
           )}
           <button onClick={saveSessionToFile} title={linkedSessionFileName ? `"${linkedSessionFileName}" 파일에 덮어씁니다` : '샘플 전체(raw+설정)를 로컬 JSON 파일로 저장'}
             className="px-2 py-1 font-mono text-[9px] uppercase border border-white/15 hover:bg-white/5 flex items-center gap-1">
-            <Save size={11} />Save Session
+            <Save size={11} />{saveStatus === 'saving' ? 'Saving…' : 'Save Session'}
           </button>
+          {saveStatus === 'saved' && lastSavedAt && (
+            <span className="text-[8px] font-mono text-[#4ADE80]">✓ Saved {lastSavedAt.toLocaleTimeString()}</span>
+          )}
+          {saveStatus === 'error' && (
+            <span className="text-[8px] font-mono text-red-400">✕ Save failed</span>
+          )}
           {supportsFileSystemAccess ? (
             <button
               onClick={() => { if (window.confirm('현재 작업을 덮어씁니다. 계속할까요?')) loadSessionViaPicker(); }}
