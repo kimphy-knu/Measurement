@@ -3208,9 +3208,15 @@ export default function App() {
       let bestF0 = 0;
       let maxR2 = -Infinity;
 
-      // Grid search around symmetryCenter or a wider range if symmetryCenter is 0
-      // If symmetryCenter is 0 and no peaks are near 0, maybe we need a wider search
-      const searchRange = 30;
+      // 1/cos(θ-φ) has period 180° in φ, so scanning any 180°-wide window is
+      // guaranteed to contain the true global optimum wherever it actually
+      // sits — the previous ±30° window only found it if the in-plane
+      // reference (symmetryCenter, default 0°) already happened to be within
+      // 30° of the true out-of-plane angle. A sample mounted so 90° (not 0°)
+      // is out-of-plane would never be found by that narrow window; ±90°
+      // covers the full period and finds it automatically regardless of
+      // which angle turns out to be the physical zero.
+      const searchRange = 90;
       const start = symmetryCenter - searchRange;
       const end = symmetryCenter + searchRange;
       const step = 0.02;
