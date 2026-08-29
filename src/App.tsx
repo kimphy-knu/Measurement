@@ -717,6 +717,12 @@ export default function App() {
   const [lkFreq, setLkFreq] = useState<number | null>(null);
   const [rangeScanMinB, setRangeScanMinB] = useState<number | null>(null);
   const [rangeScanMaxB, setRangeScanMaxB] = useState<number | null>(null);
+  // Drafts the inputs actually bind to, so typing stays responsive — the
+  // committed rangeScanMinB/MaxB above (which drive the full FFT re-batch)
+  // only update ~400ms after the user stops typing, instead of on every
+  // keystroke.
+  const [rangeScanMinBDraft, setRangeScanMinBDraft] = useState<number>(0);
+  const [rangeScanMaxBDraft, setRangeScanMaxBDraft] = useState<number>(1);
   // Once locked, new uploads keep the chosen R-column prefix instead of
   // re-running the auto-detect heuristic — otherwise every added file (e.g.
   // building up a temperature series one file at a time) can silently drift
@@ -1733,43 +1739,98 @@ export default function App() {
   const rangeScanMinBEff = rangeScanMinB ?? (typeof minB === 'number' ? minB : rangeScanFileBExtent?.lo ?? 0);
   const rangeScanMaxBEff = rangeScanMaxB ?? (typeof maxB === 'number' ? maxB : rangeScanFileBExtent?.hi ?? 1);
 
+  // Sync the input drafts whenever the tab is (re)opened, so they start from
+  // whatever candidate/committed range was last in effect rather than
+  // whatever was left over from before. Only ever touches the *draft* — the
+  // committed rangeScanMinB/MaxB below deliberately stay null until the user
+  // actually edits something, since null is what makes rangeScanMinBEff fall
+  // back to the real committed range in the first place.
+  useEffect(() => {
+    if (activeTab === 'fftrange') {
+      setRangeScanMinBDraft(rangeScanMinBEff);
+      setRangeScanMaxBDraft(rangeScanMaxBEff);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  // Debounce draft -> committed candidate range, so the full re-batch below
+  // (which reprocesses every included file) runs once after the user stops
+  // typing instead of on every keystroke. Implemented as plain event-handler
+  // timers rather than a useEffect keyed on the draft: an effect fires on
+  // mount too (twice under StrictMode), which — since the draft starts at a
+  // real number, not "unset" — would commit that value on its own a moment
+  // after mount, before the user ever touched the tab. A timer armed only
+  // from the onChange handler can't fire except in response to a real edit.
+  const rangeScanDebounceRef = useRef<{ min?: ReturnType<typeof setTimeout>; max?: ReturnType<typeof setTimeout> }>({});
+  const handleRangeScanMinBChange = (v: number) => {
+    setRangeScanMinBDraft(v);
+    clearTimeout(rangeScanDebounceRef.current.min);
+    rangeScanDebounceRef.current.min = setTimeout(() => setRangeScanMinB(v), 400);
+  };
+  const handleRangeScanMaxBChange = (v: number) => {
+    setRangeScanMaxBDraft(v);
+    clearTimeout(rangeScanDebounceRef.current.max);
+    rangeScanDebounceRef.current.max = setTimeout(() => setRangeScanMaxB(v), 400);
+  };
+
   const committedMinB = typeof minB === 'number' ? minB : -Infinity;
   const committedMaxB = typeof maxB === 'number' ? maxB : Infinity;
 
-  // batch: one row per included file — its angle and the single strongest
-  // peak under each range, for the stability stats and the table.
-  // currentPeaks/candidatePeaks: every detected peak (not just the top one)
-  // under each range, for the scatter chart — plotted as colored points, not
-  // connected, since a file can have more than one real peak.
-  const rangeScanResult = useMemo(() => {
-    if (activeTab !== 'fftrange') return { batch: [], currentPeaks: [], candidatePeaks: [] };
-    const batch: { blm: number; fileName: string; committedPeak: number | null; candidatePeak: number | null }[] = [];
-    const currentPeaks: { blm: number; frequency: number }[] = [];
-    const candidatePeaks: { blm: number; frequency: number }[] = [];
+  // Peaks under the currently *committed* (Process All) range — one row per
+  // included file plus every detected peak for the chart. Split out from the
+  // candidate-range computation below so that typing a new candidate value
+  // doesn't also redundantly redo this half of the work: it only changes
+  // when the committed range itself changes (i.e. after Apply/Process All).
+  const rangeScanCommitted = useMemo(() => {
+    if (activeTab !== 'fftrange') return { peakByFile: new Map<string, number | null>(), peaks: [] as { blm: number; frequency: number }[] };
+    const peakByFile = new Map<string, number | null>();
+    const peaks: { blm: number; frequency: number }[] = [];
     filesByAngle
       .filter(({ file }) => !fftSkip.has(file.id))
       .forEach(({ file, blm }) => {
         const bCol = resolveBCol(file);
         const rCol = targetColsFor(file)[0];
-        if (!rCol) { batch.push({ blm, fileName: file.name, committedPeak: null, candidatePeak: null }); return; }
-        const committedRes = processFileData(file.data, bCol, rCol, undefined, undefined, { min: committedMinB, max: committedMaxB });
-        const candidateRes = processFileData(file.data, bCol, rCol, undefined, undefined, { min: rangeScanMinBEff, max: rangeScanMaxBEff });
-        batch.push({
-          blm, fileName: file.name,
-          committedPeak: committedRes?.peakFrequency?.frequency ?? null,
-          candidatePeak: candidateRes?.peakFrequency?.frequency ?? null,
-        });
-        (committedRes?.detectedPeaks ?? []).forEach(p => currentPeaks.push({ blm, frequency: p.frequency }));
-        (candidateRes?.detectedPeaks ?? []).forEach(p => candidatePeaks.push({ blm, frequency: p.frequency }));
+        if (!rCol) { peakByFile.set(file.id, null); return; }
+        const res = processFileData(file.data, bCol, rCol, undefined, undefined, { min: committedMinB, max: committedMaxB });
+        peakByFile.set(file.id, res?.peakFrequency?.frequency ?? null);
+        (res?.detectedPeaks ?? []).forEach(p => peaks.push({ blm, frequency: p.frequency }));
       });
-    return {
-      batch: batch.filter(d => d.committedPeak !== null || d.candidatePeak !== null).sort((a, b) => a.blm - b.blm),
-      currentPeaks, candidatePeaks,
-    };
-  }, [activeTab, filesByAngle, fftSkip, resolveBCol, targetColsFor, committedMinB, committedMaxB, rangeScanMinBEff, rangeScanMaxBEff, processFileData]);
-  const rangeScanBatch = rangeScanResult.batch;
-  const rangeScanCurrentPeaks = rangeScanResult.currentPeaks;
-  const rangeScanCandidatePeaks = rangeScanResult.candidatePeaks;
+    return { peakByFile, peaks };
+  }, [activeTab, filesByAngle, fftSkip, resolveBCol, targetColsFor, committedMinB, committedMaxB, processFileData]);
+
+  // Peaks under the *candidate* range — recomputes on every debounced edit to
+  // the Min/Max B inputs above (that's the live-preview point of this tab).
+  const rangeScanCandidate = useMemo(() => {
+    if (activeTab !== 'fftrange') return { peakByFile: new Map<string, number | null>(), peaks: [] as { blm: number; frequency: number }[] };
+    const peakByFile = new Map<string, number | null>();
+    const peaks: { blm: number; frequency: number }[] = [];
+    filesByAngle
+      .filter(({ file }) => !fftSkip.has(file.id))
+      .forEach(({ file, blm }) => {
+        const bCol = resolveBCol(file);
+        const rCol = targetColsFor(file)[0];
+        if (!rCol) { peakByFile.set(file.id, null); return; }
+        const res = processFileData(file.data, bCol, rCol, undefined, undefined, { min: rangeScanMinBEff, max: rangeScanMaxBEff });
+        peakByFile.set(file.id, res?.peakFrequency?.frequency ?? null);
+        (res?.detectedPeaks ?? []).forEach(p => peaks.push({ blm, frequency: p.frequency }));
+      });
+    return { peakByFile, peaks };
+  }, [activeTab, filesByAngle, fftSkip, resolveBCol, targetColsFor, rangeScanMinBEff, rangeScanMaxBEff, processFileData]);
+
+  const rangeScanBatch = useMemo(() => {
+    if (activeTab !== 'fftrange') return [];
+    return filesByAngle
+      .filter(({ file }) => !fftSkip.has(file.id))
+      .map(({ file, blm }) => ({
+        blm, fileName: file.name,
+        committedPeak: rangeScanCommitted.peakByFile.get(file.id) ?? null,
+        candidatePeak: rangeScanCandidate.peakByFile.get(file.id) ?? null,
+      }))
+      .filter(d => d.committedPeak !== null || d.candidatePeak !== null)
+      .sort((a, b) => a.blm - b.blm);
+  }, [activeTab, filesByAngle, fftSkip, rangeScanCommitted, rangeScanCandidate]);
+  const rangeScanCurrentPeaks = rangeScanCommitted.peaks;
+  const rangeScanCandidatePeaks = rangeScanCandidate.peaks;
 
   const rangeScanStability = useMemo(() => {
     const withBoth = rangeScanBatch.filter(d => d.committedPeak !== null && d.candidatePeak !== null);
@@ -7268,18 +7329,18 @@ export default function App() {
                   <div className="flex items-center gap-6 bg-white/5 px-6 py-3 border border-white/10 flex-wrap">
                     <div className="flex flex-col gap-1">
                       <label className="text-[9px] font-mono uppercase opacity-60">Candidate Min B (T):</label>
-                      <input type="number" step="0.1" value={rangeScanMinBEff}
-                        onChange={(e) => setRangeScanMinB(Number(e.target.value))}
+                      <input type="number" step="0.1" value={rangeScanMinBDraft}
+                        onChange={(e) => handleRangeScanMinBChange(Number(e.target.value))}
                         className="w-24 bg-[#141414] border border-[#E4E3E0]/30 p-1 font-mono text-[10px] text-[#E4E3E0]" />
                     </div>
                     <div className="flex flex-col gap-1">
                       <label className="text-[9px] font-mono uppercase opacity-60">Candidate Max B (T):</label>
-                      <input type="number" step="0.1" value={rangeScanMaxBEff}
-                        onChange={(e) => setRangeScanMaxB(Number(e.target.value))}
+                      <input type="number" step="0.1" value={rangeScanMaxBDraft}
+                        onChange={(e) => handleRangeScanMaxBChange(Number(e.target.value))}
                         className="w-24 bg-[#141414] border border-[#E4E3E0]/30 p-1 font-mono text-[10px] text-[#E4E3E0]" />
                     </div>
                     <button
-                      onClick={() => { setTempMinB(rangeScanMinBEff); setTempMaxB(rangeScanMaxBEff); setMinB(rangeScanMinBEff); setMaxB(rangeScanMaxBEff); }}
+                      onClick={() => { setTempMinB(rangeScanMinBDraft); setTempMaxB(rangeScanMaxBDraft); setMinB(rangeScanMinBDraft); setMaxB(rangeScanMaxBDraft); }}
                       className="px-2.5 py-1.5 font-mono text-[9px] uppercase border border-[#F27D26] text-[#F27D26] hover:bg-[#F27D26]/10 self-end"
                     >
                       Use This Range
@@ -7287,7 +7348,7 @@ export default function App() {
                   </div>
                 </div>
                 <p className="text-[10px] font-mono opacity-40 mb-6 leading-relaxed">
-                  현재 적용된 범위 [{isFinite(committedMinB) ? committedMinB.toFixed(2) : '−∞'}, {isFinite(committedMaxB) ? committedMaxB.toFixed(2) : '∞'}] T (파란색) 대비, 위에서 바꾼 후보 범위 (주황색) 로 각 파일의 detected peak이 어떻게 움직이는지 각도별로 비교합니다. 값만 바꾸면 즉시 갱신되고, "Process All"은 누를 필요 없습니다.
+                  현재 적용된 범위 [{isFinite(committedMinB) ? committedMinB.toFixed(2) : '−∞'}, {isFinite(committedMaxB) ? committedMaxB.toFixed(2) : '∞'}] T (파란색) 대비, 위에서 바꾼 후보 범위 (주황색) 로 각 파일의 detected peak이 어떻게 움직이는지 각도별로 비교합니다. 값을 바꾸면 타이핑을 멈춘 직후 자동 갱신되고, "Process All"은 누를 필요 없습니다.
                 </p>
 
                 {rangeScanBatch.length === 0 ? (
