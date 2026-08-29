@@ -1378,6 +1378,15 @@ export default function App() {
       // Ensure paddingFactor is at least 1 and fftSize is a power of 2
       // Since interpPoints is already a power of 2, we just need paddingFactor to be a power of 2
       paddingFactor = Math.pow(2, Math.ceil(Math.log2(Math.max(1, paddingFactor))));
+      // A narrow field window (large df_base) combined with a small target
+      // interval can drive this into the millions — the interval input has
+      // no real floor (the "min" attribute is a UI hint only), so a typo
+      // like 0.001 instead of 0.1 silently asks for an FFT with tens of
+      // millions of points. Process All runs this per file per column with
+      // no yielding in between, so an unbounded size here reads as the
+      // whole tab freezing rather than a slow-but-alive computation.
+      const MAX_FFT_SIZE = 65536;
+      paddingFactor = Math.min(paddingFactor, Math.max(1, MAX_FFT_SIZE / interpPoints));
       fftSize = interpPoints * paddingFactor;
     }
 
