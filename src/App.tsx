@@ -7194,6 +7194,14 @@ export default function App() {
                         placeholder="Manual"
                       />
                     </div>
+                    <button
+                      onClick={exportLKFitCSV}
+                      disabled={!lkFitResult || lkFitResult.points.length < 3}
+                      title="온도별 진폭/피팅값 + m*, A0, R²를 CSV로 저장"
+                      className="px-2.5 py-1.5 font-mono text-[9px] uppercase border border-[#F27D26]/40 text-[#F27D26] hover:bg-[#F27D26]/10 disabled:opacity-30 disabled:cursor-not-allowed self-end flex items-center gap-1"
+                    >
+                      <Download size={11} />Export CSV
+                    </button>
                   </div>
                 </div>
 
