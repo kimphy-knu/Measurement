@@ -523,15 +523,31 @@ export default function App() {
   };
 
   // Export the L-K fit series + fitted parameters.
+  // Data rows (one per file) plus the smooth fitted curve (temperature,
+  // amplitude) side by side in the same wide CSV — the curve has many more
+  // rows than there are files, so the two run to their own lengths and the
+  // shorter side pads with blanks, same convention as the other "aligned"
+  // exports in this app.
   const exportLKFitCSV = () => {
     if (!lkFitResult || lkFitResult.points.length === 0) return;
     const { points, mStar, A0, r2 } = lkFitResult;
-    const rows: string[] = ['FileName,Temperature(K),Amplitude,B_eff(T),Predicted,m_star(m0),A0,R2'];
-    points.forEach(p => {
-      const X = mStar != null ? 14.69 * mStar * p.temp / p.bEff : NaN;
-      const pred = mStar != null && A0 != null ? A0 * lkDampingFactor(X) : NaN;
-      rows.push(`"${p.fileName}",${p.temp},${p.amp},${p.bEff},${isFinite(pred) ? pred : ''},${mStar ?? ''},${A0 ?? ''},${r2 ?? ''}`);
-    });
+    const curve = lkFitCurve;
+    const rows: string[] = ['FileName,Temperature(K),Amplitude,B_eff(T),Predicted,m_star(m0),A0,R2,Fit_Temperature(K),Fit_Amplitude'];
+    const maxRows = Math.max(points.length, curve.length);
+    for (let i = 0; i < maxRows; i++) {
+      const p = points[i];
+      const c = curve[i];
+      let dataCols: (string | number)[];
+      if (p) {
+        const X = mStar != null ? 14.69 * mStar * p.temp / p.bEff : NaN;
+        const pred = mStar != null && A0 != null ? A0 * lkDampingFactor(X) : NaN;
+        dataCols = [`"${p.fileName}"`, p.temp, p.amp, p.bEff, isFinite(pred) ? pred : '', mStar ?? '', A0 ?? '', r2 ?? ''];
+      } else {
+        dataCols = ['', '', '', '', '', '', '', ''];
+      }
+      const curveCols: (string | number)[] = c ? [c.temp, c.ampFit] : ['', ''];
+      rows.push([...dataCols, ...curveCols].join(','));
+    }
     downloadCSV(rows.join('\n'), `lk_fit_${lkFreq ?? 'freq'}T_${lkColumn || 'auto'}.csv`);
   };
 
@@ -1719,6 +1735,25 @@ export default function App() {
     // 400-step scan + golden-section search over every file, no reason to pay
     // for it while the user is on a different tab.
   }, [activeTab, files, lkColumn, lkFreq, resolveTemperature]);
+
+  // The smooth (temperature, fitted amplitude) curve — 100 points evaluated
+  // at the mean B_eff across the series. Shared by the chart and the CSV
+  // export so both draw from the exact same fitted function.
+  const lkFitCurve = useMemo(() => {
+    if (!lkFitResult || lkFitResult.mStar == null || lkFitResult.A0 == null || lkFitResult.points.length === 0) return [];
+    const { points, mStar, A0 } = lkFitResult;
+    const avgBeff = points.reduce((s, p) => s + p.bEff, 0) / points.length;
+    const tMin = Math.min(...points.map(p => p.temp));
+    const tMax = Math.max(...points.map(p => p.temp));
+    const steps = 100;
+    const curve: { temp: number; ampFit: number }[] = [];
+    for (let i = 0; i <= steps; i++) {
+      const t = tMin + ((tMax - tMin) * i) / steps;
+      const X = 14.69 * mStar * t / avgBeff;
+      curve.push({ temp: t, ampFit: A0 * lkDampingFactor(X) });
+    }
+    return curve;
+  }, [lkFitResult]);
 
   // ---- FFT Range Scan: how do ALL detected peaks, across every file in the
   // batch, shift when the B-field window changes? Not a single-file drill
@@ -7241,17 +7276,7 @@ export default function App() {
                 ) : (() => {
                   const { points, mStar, A0, r2 } = lkFitResult;
                   const avgBeff = points.reduce((s, p) => s + p.bEff, 0) / points.length;
-                  const tMin = Math.min(...points.map(p => p.temp));
-                  const tMax = Math.max(...points.map(p => p.temp));
-                  const curvePoints: { temp: number; ampFit: number }[] = [];
-                  if (mStar != null && A0 != null) {
-                    const steps = 100;
-                    for (let i = 0; i <= steps; i++) {
-                      const t = tMin + ((tMax - tMin) * i) / steps;
-                      const X = 14.69 * mStar * t / avgBeff;
-                      curvePoints.push({ temp: t, ampFit: A0 * lkDampingFactor(X) });
-                    }
-                  }
+                  const curvePoints = lkFitCurve;
 
                   return (
                     <div className="space-y-8">
