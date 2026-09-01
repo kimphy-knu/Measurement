@@ -79,6 +79,46 @@ const LOCAL_USER: LocalUser = {
 
 // --- Components ---
 
+// A "live preview" B-range input pair: the displayed draft updates on every
+// keystroke, but the *committed* value (what the expensive re-FFT actually
+// reacts to) only updates ~400ms after the user stops typing, and stays
+// `null` ("not touched yet") until they do. Armed only from the onChange
+// handler rather than a useEffect keyed on the draft — an effect fires once
+// on mount too (twice under StrictMode), which would commit the initial
+// draft value on its own moment after mount before the user ever touched
+// the control (this exact bug already happened once in the FFT Range tab).
+function useDebouncedRange(delayMs = 400) {
+  const [minDraft, setMinDraft] = useState(0);
+  const [maxDraft, setMaxDraft] = useState(1);
+  const [minCommitted, setMinCommitted] = useState<number | null>(null);
+  const [maxCommitted, setMaxCommitted] = useState<number | null>(null);
+  const timers = useRef<{ min?: ReturnType<typeof setTimeout>; max?: ReturnType<typeof setTimeout> }>({});
+
+  const changeMin = (v: number) => {
+    setMinDraft(v);
+    clearTimeout(timers.current.min);
+    timers.current.min = setTimeout(() => setMinCommitted(v), delayMs);
+  };
+  const changeMax = (v: number) => {
+    setMaxDraft(v);
+    clearTimeout(timers.current.max);
+    timers.current.max = setTimeout(() => setMaxCommitted(v), delayMs);
+  };
+  // Reset to "not touched" — falls back to whatever the caller's own
+  // fallback range is, and re-syncs the drafts so the inputs show it too.
+  const reset = (fallbackMin: number, fallbackMax: number) => {
+    clearTimeout(timers.current.min);
+    clearTimeout(timers.current.max);
+    setMinCommitted(null);
+    setMaxCommitted(null);
+    setMinDraft(fallbackMin);
+    setMaxDraft(fallbackMax);
+  };
+  const active = minCommitted !== null || maxCommitted !== null;
+
+  return { minDraft, maxDraft, minCommitted, maxCommitted, active, changeMin, changeMax, reset };
+}
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
@@ -739,6 +779,12 @@ export default function App() {
   // keystroke.
   const [rangeScanMinBDraft, setRangeScanMinBDraft] = useState<number>(0);
   const [rangeScanMaxBDraft, setRangeScanMaxBDraft] = useState<number>(1);
+  // Same live-preview pattern as above, for two more spots that want an
+  // instant "change the B-range, see the FFT move" control without a trip
+  // to the FFT Range tab: the Dashboard's "All Detected Frequencies vs BLM"
+  // (all files) and the per-file "3. FFT Power Spectrum" (just that file).
+  const dashLiveRange = useDebouncedRange();
+  const fileLiveRange = useDebouncedRange();
   // Once locked, new uploads keep the chosen R-column prefix instead of
   // re-running the auto-detect heuristic — otherwise every added file (e.g.
   // building up a temperature series one file at a time) can silently drift
@@ -1885,6 +1931,38 @@ export default function App() {
     return { n: withBoth.length, maxDelta, meanDelta };
   }, [rangeScanBatch]);
 
+  // ---- Live-preview B-range for "All Detected Frequencies vs BLM" ----
+  // Recomputes every included file's detected peaks under a candidate range
+  // with no Process All needed. null (untouched) means "just show the
+  // normal batchSummary from the last Process All" — dashLivePeaks only
+  // takes over once the user actually edits the range, and only while the
+  // Dashboard is the visible tab.
+  const dashLiveMinBEff = dashLiveRange.minCommitted ?? (typeof minB === 'number' ? minB : -Infinity);
+  const dashLiveMaxBEff = dashLiveRange.maxCommitted ?? (typeof maxB === 'number' ? maxB : Infinity);
+  const dashLivePeaks = useMemo(() => {
+    if (activeTab !== 'dashboard' || !dashLiveRange.active) return null;
+    const out: { blm: number; freq: number; amp: number; fileName: string; id: string; temp: number }[] = [];
+    filesByAngle
+      .filter(({ file }) => !fftSkip.has(file.id))
+      .forEach(({ file, blm }) => {
+        const bCol = resolveBCol(file);
+        const cols = targetColsFor(file);
+        const temp = getFileTemperature(file);
+        const results = complexMode && cols.length >= 2
+          ? [processFileData(file.data, bCol, 'Combined', cols[0], cols[1], { min: dashLiveMinBEff, max: dashLiveMaxBEff })]
+          : cols.map(col => processFileData(file.data, bCol, col, undefined, undefined, { min: dashLiveMinBEff, max: dashLiveMaxBEff }));
+        results.forEach((res, i) => {
+          if (!res) return;
+          const colName = complexMode && cols.length >= 2 ? 'Combined' : cols[i];
+          res.detectedPeaks.forEach((peak, pIdx) => {
+            out.push({ blm, freq: peak.frequency, amp: peak.amplitude, fileName: file.name, id: `${file.id}-${colName}-${pIdx}`, temp });
+          });
+        });
+      });
+    return out;
+  }, [activeTab, dashLiveRange.active, filesByAngle, fftSkip, resolveBCol, targetColsFor, complexMode, dashLiveMinBEff, dashLiveMaxBEff, processFileData, getFileTemperature]);
+  const displayedBatchSummary = dashLivePeaks ?? batchSummary;
+
   const findAutoPhase = () => {
     if (selectedRColumns.length < 2 || files.length === 0) return;
     
@@ -2326,6 +2404,24 @@ export default function App() {
     
     return { ...file, results: results.filter((r): r is AnalysisResult => r !== null) };
   }, [files, selectedFileIndex, activeTab, selectedBColumn, selectedRColumns, complexMode, processFileData, isProcessing, fftSkip]);
+
+  // ---- Live-preview B-range for the per-file "3. FFT Power Spectrum" ----
+  // Same idea, scoped to just the file currently open in the per-file detail
+  // view — keyed by column name so each processed column gets its own live
+  // spectrum. The rare complex-mode "Combined" pseudo-column has no recorded
+  // In/Out pair to redo the mix with, so it's left out of the live preview.
+  const fileLiveMinBEff = fileLiveRange.minCommitted ?? (typeof minB === 'number' ? minB : -Infinity);
+  const fileLiveMaxBEff = fileLiveRange.maxCommitted ?? (typeof maxB === 'number' ? maxB : Infinity);
+  const fileLiveResults = useMemo(() => {
+    if (!fileLiveRange.active || !currentFileResults || !files.some(f => f.id === activeTab)) return null;
+    const bCol = resolveBCol(currentFileResults);
+    const map = new Map<string, AnalysisResult | null>();
+    (currentFileResults.results || []).forEach(res => {
+      if (res.columnName === 'Combined') { map.set(res.columnName, null); return; }
+      map.set(res.columnName, processFileData(currentFileResults.data, bCol, res.columnName, undefined, undefined, { min: fileLiveMinBEff, max: fileLiveMaxBEff }));
+    });
+    return map;
+  }, [fileLiveRange.active, currentFileResults, files, activeTab, resolveBCol, fileLiveMinBEff, fileLiveMaxBEff, processFileData]);
 
   // Commit the staged (sidebar) values to the effective settings. Shared by the
   // "Apply All Settings" button and by Process All, so the numbers on screen are
@@ -4725,7 +4821,31 @@ export default function App() {
                   <div className="bg-[#141414] text-[#E4E3E0] p-8 border border-[#E4E3E0]/10 animate-in fade-in zoom-in duration-500">
                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 mb-12">
                       <div className="h-[450px] w-full bg-[#141414]/50 p-6 border border-[#E4E3E0]/5">
-                        <h4 className="text-xs font-mono uppercase opacity-60 mb-6 text-center">All Detected Frequencies vs BLM</h4>
+                        <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+                          <h4 className="text-xs font-mono uppercase opacity-60">All Detected Frequencies vs BLM</h4>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[8px] font-mono uppercase opacity-40">Live Range:</span>
+                            <input type="number" step="0.1" value={dashLiveRange.minDraft}
+                              onChange={(e) => dashLiveRange.changeMin(Number(e.target.value))}
+                              title="Process All 없이 즉시 미리보기할 Min B"
+                              className="w-14 bg-[#141414] border border-[#E4E3E0]/30 p-0.5 font-mono text-[9px] text-[#E4E3E0]" />
+                            <span className="opacity-30 text-[9px]">–</span>
+                            <input type="number" step="0.1" value={dashLiveRange.maxDraft}
+                              onChange={(e) => dashLiveRange.changeMax(Number(e.target.value))}
+                              title="Process All 없이 즉시 미리보기할 Max B"
+                              className="w-14 bg-[#141414] border border-[#E4E3E0]/30 p-0.5 font-mono text-[9px] text-[#E4E3E0]" />
+                            {dashLiveRange.active && (
+                              <button onClick={() => dashLiveRange.reset(typeof minB === 'number' ? minB : 0, typeof maxB === 'number' ? maxB : 1)}
+                                title="Process All 결과로 되돌리기"
+                                className="px-1.5 py-0.5 font-mono text-[8px] uppercase border border-[#F27D26]/50 text-[#F27D26] hover:bg-[#F27D26]/10">Reset</button>
+                            )}
+                          </div>
+                        </div>
+                        {dashLiveRange.active && (
+                          <p className="text-[8px] font-mono text-[#F27D26] text-center mb-2">
+                            Live preview [{dashLiveMinBEff.toFixed(2)}, {dashLiveMaxBEff.toFixed(2)}] T — not yet Process All'd
+                          </p>
+                        )}
                         <ResponsiveContainer width="100%" height="90%">
                           <ScatterChart margin={{ bottom: 20 }}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#333" />
@@ -4771,10 +4891,10 @@ export default function App() {
                               }}
                             />
                             <Legend verticalAlign="top" height={36}/>
-                            <Scatter 
-                              name="Detected Peaks" 
-                              data={batchSummary} 
-                              fill="#F27D26" 
+                            <Scatter
+                              name="Detected Peaks"
+                              data={displayedBatchSummary}
+                              fill="#F27D26"
                               stroke="#FFFFFF"
                               strokeWidth={1}
                             />
@@ -7575,26 +7695,62 @@ export default function App() {
 
                   {/* FFT Spectrum */}
                   <div className="bg-[#141414] text-[#E4E3E0] p-6">
+                    {(() => {
+                      // Live preview swaps in a range-overridden result only once
+                      // fileLiveRange is actively being edited; otherwise this is
+                      // exactly `res`, so nothing here changes from before.
+                      const displayRes = fileLiveResults?.get(res.columnName) ?? res;
+                      return (
+                    <>
                     <div className="flex justify-between items-center mb-6">
                       <div className="flex flex-col">
                         <h3 className="font-serif italic font-bold text-xl">3. FFT Power Spectrum</h3>
-                        {res.peakFrequency && (
+                        {displayRes.peakFrequency && (
                           <div className="flex flex-col">
                             <span className="text-[10px] font-mono text-[#F27D26]">
-                              Peak: {res.peakFrequency.frequency.toFixed(1)} T (Amp: {res.peakFrequency.amplitude.toExponential(2)})
+                              Peak: {displayRes.peakFrequency.frequency.toFixed(1)} T (Amp: {displayRes.peakFrequency.amplitude.toExponential(2)})
                             </span>
                             <span className="text-[9px] font-mono opacity-40">
-                              Max Amp (excl. DC): {(() => { let m = 0; for (let i = 1; i < res.fftResults.length; i++) if (res.fftResults[i].amplitude > m) m = res.fftResults[i].amplitude; return res.fftResults.length > 1 ? m.toExponential(2) : 'N/A'; })()}
+                              Max Amp (excl. DC): {(() => { let m = 0; for (let i = 1; i < displayRes.fftResults.length; i++) if (displayRes.fftResults[i].amplitude > m) m = displayRes.fftResults[i].amplitude; return displayRes.fftResults.length > 1 ? m.toExponential(2) : 'N/A'; })()}
                             </span>
                           </div>
                         )}
                       </div>
                       <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[8px] font-mono uppercase opacity-40">Live Range:</span>
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={fileLiveRange.minDraft}
+                            onChange={(e) => fileLiveRange.changeMin(Number(e.target.value))}
+                            title="Process All 없이 즉시 미리보기할 Min B"
+                            className="w-14 bg-[#1a1a1a] border border-[#E4E3E0]/30 p-0.5 font-mono text-[9px] text-[#E4E3E0]"
+                          />
+                          <span className="opacity-30 text-[9px]">–</span>
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={fileLiveRange.maxDraft}
+                            onChange={(e) => fileLiveRange.changeMax(Number(e.target.value))}
+                            title="Process All 없이 즉시 미리보기할 Max B"
+                            className="w-14 bg-[#1a1a1a] border border-[#E4E3E0]/30 p-0.5 font-mono text-[9px] text-[#E4E3E0]"
+                          />
+                          {fileLiveRange.active && (
+                            <button
+                              onClick={() => fileLiveRange.reset(typeof minB === 'number' ? minB : 0, typeof maxB === 'number' ? maxB : 1)}
+                              title="Process All 결과로 되돌리기"
+                              className="px-1.5 py-0.5 font-mono text-[8px] uppercase border border-[#F27D26]/50 text-[#F27D26] hover:bg-[#F27D26]/10"
+                            >
+                              Reset
+                            </button>
+                          )}
+                        </div>
                         <div className="flex items-center gap-2">
                           <label className="text-[9px] font-mono uppercase opacity-60">Auto Range</label>
-                          <input 
-                            type="checkbox" 
-                            checked={autoFFTRange} 
+                          <input
+                            type="checkbox"
+                            checked={autoFFTRange}
                             onChange={(e) => setAutoFFTRange(e.target.checked)}
                             className="accent-[#F27D26]"
                           />
@@ -7602,9 +7758,9 @@ export default function App() {
                         {!autoFFTRange && (
                           <div className="flex items-center gap-2">
                             <label className="text-[9px] font-mono uppercase opacity-60">Max Freq:</label>
-                            <input 
-                              type="number" 
-                              value={manualMaxFreq} 
+                            <input
+                              type="number"
+                              value={manualMaxFreq}
                               onChange={(e) => setManualMaxFreq(Number(e.target.value))}
                               className="w-20 bg-[#141414] border border-[#E4E3E0]/30 p-1 font-mono text-[10px] text-[#E4E3E0]"
                             />
@@ -7613,13 +7769,18 @@ export default function App() {
                         <span className="text-[10px] font-mono uppercase opacity-40 text-[#E4E3E0]">Amplitude vs Frequency (T)</span>
                       </div>
                     </div>
+                    {fileLiveRange.active && (
+                      <p className="text-[8px] font-mono text-[#F27D26] text-right -mt-4 mb-4">
+                        Live preview [{fileLiveMinBEff.toFixed(2)}, {fileLiveMaxBEff.toFixed(2)}] T — not yet Process All'd
+                      </p>
+                    )}
                     <div className="h-[300px] w-full">
-                      <ResponsiveContainer 
-                        width="100%" 
+                      <ResponsiveContainer
+                        width="100%"
                         height="100%"
                         key={`${res.columnName}-${autoFFTRange}-${manualMaxFreq}`}
                       >
-                        <ComposedChart data={downsampleFFT(res.fftResults, 1000)}>
+                        <ComposedChart data={downsampleFFT(displayRes.fftResults, 1000)}>
                           <defs>
                             <linearGradient id={`colorAmp-${res.columnName}`} x1="0" y1="0" x2="0" y2="1">
                               <stop offset="5%" stopColor="#F27D26" stopOpacity={0.8}/>
@@ -7627,16 +7788,16 @@ export default function App() {
                             </linearGradient>
                           </defs>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#333" />
-                          <XAxis 
-                            dataKey="frequency" 
-                            type="number" 
-                            domain={[0, autoFFTRange ? (batchSummary.length > 0 ? globalSuggestedMaxFreq : res.suggestedMaxFreq) : manualMaxFreq]} 
+                          <XAxis
+                            dataKey="frequency"
+                            type="number"
+                            domain={[0, autoFFTRange ? (batchSummary.length > 0 ? globalSuggestedMaxFreq : displayRes.suggestedMaxFreq) : manualMaxFreq]}
                             allowDataOverflow={true}
                             tick={{ fontSize: 10, fontFamily: 'monospace', fill: '#E4E3E0' }}
                             label={{ value: 'Frequency (T)', position: 'insideBottom', offset: -5, fill: '#E4E3E0', fontSize: 10 }}
                           />
                           <YAxis tick={{ fontSize: 10, fontFamily: 'monospace', fill: '#E4E3E0' }} />
-                          <Tooltip 
+                          <Tooltip
                             contentStyle={{ backgroundColor: '#141414', borderRadius: 0, border: '1px solid #E4E3E0', fontFamily: 'monospace', fontSize: '10px', color: '#E4E3E0' }}
                             itemStyle={{ color: '#F27D26' }}
                             formatter={(value: any, name: string) => {
@@ -7646,36 +7807,39 @@ export default function App() {
                             }}
                           />
                           {autoFFTRange && batchSummary.length > 0 && (
-                            <ReferenceLine 
-                              x={globalSuggestedMaxFreq / 1.5} 
-                              stroke="#F27D26" 
-                              strokeDasharray="3 3" 
-                              label={{ value: 'Max Peak', position: 'top', fill: '#F27D26', fontSize: 9, fontFamily: 'monospace' }} 
+                            <ReferenceLine
+                              x={globalSuggestedMaxFreq / 1.5}
+                              stroke="#F27D26"
+                              strokeDasharray="3 3"
+                              label={{ value: 'Max Peak', position: 'top', fill: '#F27D26', fontSize: 9, fontFamily: 'monospace' }}
                               opacity={0.5}
                             />
                           )}
                           <Area type="monotone" dataKey="amplitude" stroke="#F27D26" fillOpacity={1} fill={`url(#colorAmp-${res.columnName})`} name="Amplitude" />
                           <Line type="stepAfter" dataKey="threshold" stroke="#FFFFFF" strokeDasharray="5 5" dot={false} name="Threshold" opacity={0.5} />
-                          <Scatter 
-                            data={res.detectedPeaks} 
-                            name="Peaks" 
-                            fill="#FFFFFF" 
-                            stroke="#F27D26" 
-                            strokeWidth={2} 
+                          <Scatter
+                            data={displayRes.detectedPeaks}
+                            name="Peaks"
+                            fill="#FFFFFF"
+                            stroke="#F27D26"
+                            strokeWidth={2}
                             dataKey="amplitude"
                             isAnimationActive={false}
                           >
-                            <LabelList 
-                              dataKey="frequency" 
-                              position="top" 
-                              offset={10} 
-                              formatter={(val: number) => val.toFixed(2)} 
+                            <LabelList
+                              dataKey="frequency"
+                              position="top"
+                              offset={10}
+                              formatter={(val: number) => val.toFixed(2)}
                               style={{ fontSize: '10px', fontFamily: 'monospace', fill: '#FFFFFF' }}
                             />
                           </Scatter>
                         </ComposedChart>
                       </ResponsiveContainer>
                     </div>
+                    </>
+                      );
+                    })()}
 
                     {/* Detected Peaks Table */}
                     <div className="mt-8 border-t border-[#E4E3E0]/10 pt-6">
