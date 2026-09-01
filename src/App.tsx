@@ -94,15 +94,20 @@ function useDebouncedRange(delayMs = 400) {
   const [maxCommitted, setMaxCommitted] = useState<number | null>(null);
   const timers = useRef<{ min?: ReturnType<typeof setTimeout>; max?: ReturnType<typeof setTimeout> }>({});
 
-  const changeMin = (v: number) => {
+  // `immediate` skips the debounce — used for wheel-scroll steps, which are
+  // discrete deliberate actions (unlike keystrokes typing a multi-digit
+  // number), so each tick should recompute right away.
+  const changeMin = (v: number, immediate = false) => {
     setMinDraft(v);
     clearTimeout(timers.current.min);
-    timers.current.min = setTimeout(() => setMinCommitted(v), delayMs);
+    if (immediate) setMinCommitted(v);
+    else timers.current.min = setTimeout(() => setMinCommitted(v), delayMs);
   };
-  const changeMax = (v: number) => {
+  const changeMax = (v: number, immediate = false) => {
     setMaxDraft(v);
     clearTimeout(timers.current.max);
-    timers.current.max = setTimeout(() => setMaxCommitted(v), delayMs);
+    if (immediate) setMaxCommitted(v);
+    else timers.current.max = setTimeout(() => setMaxCommitted(v), delayMs);
   };
   // Reset to "not touched" — falls back to whatever the caller's own
   // fallback range is, and re-syncs the drafts so the inputs show it too.
@@ -117,6 +122,27 @@ function useDebouncedRange(delayMs = 400) {
   const active = minCommitted !== null || maxCommitted !== null;
 
   return { minDraft, maxDraft, minCommitted, maxCommitted, active, changeMin, changeMax, reset };
+}
+
+// Lets a live-range number input respond to the mouse wheel even when it
+// isn't focused yet — the browser's native scroll-to-increment on
+// <input type="number"> only kicks in after a click to focus it first,
+// which read as "nothing happens until I click once" for these controls.
+// Assigning onwheel as a DOM property (rather than a passive React
+// onWheel prop) lets preventDefault actually stop the page from
+// scrolling underneath the cursor while the user adjusts the range.
+// Committed immediately (bypassing the debounce) since each wheel tick
+// is a discrete, deliberate step rather than a keystroke mid-typing.
+function wheelStepRef(current: number, onChange: (v: number, immediate?: boolean) => void, step = 0.1) {
+  return (el: HTMLInputElement | null) => {
+    if (!el) return;
+    el.onwheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const dir = e.deltaY < 0 ? 1 : -1;
+      const next = Math.round((current + dir * step) * 100) / 100;
+      onChange(next, true);
+    };
+  };
 }
 
 export default function App() {
@@ -785,6 +811,18 @@ export default function App() {
   // (all files) and the per-file "3. FFT Power Spectrum" (just that file).
   const dashLiveRange = useDebouncedRange();
   const fileLiveRange = useDebouncedRange();
+  // Seed both live-range controls with the currently committed B-Field ROI
+  // instead of leaving them at the hook's hardcoded 0–1 default, so they
+  // already show a sensible range before the user has touched them. Only
+  // runs while a control is untouched ("not active") — an in-progress live
+  // override is never clobbered by this.
+  useEffect(() => {
+    const fallbackMin = typeof minB === 'number' ? minB : 0;
+    const fallbackMax = typeof maxB === 'number' ? maxB : 1;
+    if (!dashLiveRange.active) dashLiveRange.reset(fallbackMin, fallbackMax);
+    if (!fileLiveRange.active) fileLiveRange.reset(fallbackMin, fallbackMax);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [minB, maxB]);
   // Once locked, new uploads keep the chosen R-column prefix instead of
   // re-running the auto-detect heuristic — otherwise every added file (e.g.
   // building up a temperature series one file at a time) can silently drift
@@ -4826,13 +4864,15 @@ export default function App() {
                           <div className="flex items-center gap-1.5">
                             <span className="text-[8px] font-mono uppercase opacity-40">Live Range:</span>
                             <input type="number" step="0.1" value={dashLiveRange.minDraft}
+                              ref={wheelStepRef(dashLiveRange.minDraft, dashLiveRange.changeMin)}
                               onChange={(e) => dashLiveRange.changeMin(Number(e.target.value))}
-                              title="Process All 없이 즉시 미리보기할 Min B"
+                              title="Process All 없이 즉시 미리보기할 Min B (스크롤로 조절 가능)"
                               className="w-14 bg-[#141414] border border-[#E4E3E0]/30 p-0.5 font-mono text-[9px] text-[#E4E3E0]" />
                             <span className="opacity-30 text-[9px]">–</span>
                             <input type="number" step="0.1" value={dashLiveRange.maxDraft}
+                              ref={wheelStepRef(dashLiveRange.maxDraft, dashLiveRange.changeMax)}
                               onChange={(e) => dashLiveRange.changeMax(Number(e.target.value))}
-                              title="Process All 없이 즉시 미리보기할 Max B"
+                              title="Process All 없이 즉시 미리보기할 Max B (스크롤로 조절 가능)"
                               className="w-14 bg-[#141414] border border-[#E4E3E0]/30 p-0.5 font-mono text-[9px] text-[#E4E3E0]" />
                             {dashLiveRange.active && (
                               <button onClick={() => dashLiveRange.reset(typeof minB === 'number' ? minB : 0, typeof maxB === 'number' ? maxB : 1)}
@@ -7723,8 +7763,9 @@ export default function App() {
                             type="number"
                             step="0.1"
                             value={fileLiveRange.minDraft}
+                            ref={wheelStepRef(fileLiveRange.minDraft, fileLiveRange.changeMin)}
                             onChange={(e) => fileLiveRange.changeMin(Number(e.target.value))}
-                            title="Process All 없이 즉시 미리보기할 Min B"
+                            title="Process All 없이 즉시 미리보기할 Min B (스크롤로 조절 가능)"
                             className="w-14 bg-[#1a1a1a] border border-[#E4E3E0]/30 p-0.5 font-mono text-[9px] text-[#E4E3E0]"
                           />
                           <span className="opacity-30 text-[9px]">–</span>
@@ -7732,8 +7773,9 @@ export default function App() {
                             type="number"
                             step="0.1"
                             value={fileLiveRange.maxDraft}
+                            ref={wheelStepRef(fileLiveRange.maxDraft, fileLiveRange.changeMax)}
                             onChange={(e) => fileLiveRange.changeMax(Number(e.target.value))}
-                            title="Process All 없이 즉시 미리보기할 Max B"
+                            title="Process All 없이 즉시 미리보기할 Max B (스크롤로 조절 가능)"
                             className="w-14 bg-[#1a1a1a] border border-[#E4E3E0]/30 p-0.5 font-mono text-[9px] text-[#E4E3E0]"
                           />
                           {fileLiveRange.active && (
