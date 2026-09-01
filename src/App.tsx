@@ -255,6 +255,14 @@ export default function App() {
   const [landauBandLo, setLandauBandLo] = useState<number>(0);         // 0 ⇒ auto (from dominant peak)
   const [landauBandHi, setLandauBandHi] = useState<number>(0);
   const [landauEdge, setLandauEdge] = useState<number>(0.25);          // raised-cosine edge width fraction
+  // IFFT verification state — "is this specific detected frequency a real
+  // oscillation, or noise?" Reuses the same FFT→band-pass→IFFT machinery as
+  // the Landau Fan tab, but overlays the reconstructed single-frequency
+  // component directly on the raw ΔR(1/B) instead of indexing it.
+  const [ifftResultKey, setIfftResultKey] = useState<string>('');
+  const [ifftBandLo, setIfftBandLo] = useState<number>(0);   // 0,0 ⇒ auto (dominant peak)
+  const [ifftBandHi, setIfftBandHi] = useState<number>(0);
+  const [ifftEdge, setIfftEdge] = useState<number>(0.25);
   const [tauSampleVol, setTauSampleVol] = useState<number>(1.0);
   const [tauFourierNMax, setTauFourierNMax] = useState<number>(6);
   const [tauScaleFieldsStr, setTauScaleFieldsStr] = useState<string>('2,5,10,15,20');
@@ -3555,8 +3563,40 @@ export default function App() {
     }).filter(d => isFinite(d.slope) && d.nPts >= 3).sort((a, b) => a.blm - b.blm);
   }, [landauSeriesList, landauOpts, landauDelta, landauEdge, landauBandpass]);
 
+  // ── IFFT verification memos ─────────────────────────────────────────────
+  // Shares landauSeriesList (every processed file+column) as the picker —
+  // it's not Landau-specific, just "every result available to inspect".
+  const ifftSelected = useMemo(() => {
+    if (landauSeriesList.length === 0) return null;
+    const found = landauSeriesList.find(s => s.key === ifftResultKey) || landauSeriesList[0];
+    const series = found.result.plotData
+      .map(d => ({ invB: d.invB, b: d.b, val: d.deltaR }))
+      .sort((a, b) => a.invB - b.invB);
+    return { ...found, series };
+  }, [landauSeriesList, ifftResultKey]);
+
+  const ifftBand = useMemo(
+    () => (ifftBandHi > ifftBandLo && ifftBandHi > 0 ? { lo: ifftBandLo, hi: ifftBandHi } : null),
+    [ifftBandLo, ifftBandHi],
+  );
+  const ifftFiltered = useMemo(
+    () => ifftSelected ? landauSpectrumAndFilter(ifftSelected.series, ifftBand, ifftEdge, true) : null,
+    [ifftSelected, ifftBand, ifftEdge],
+  );
+
+  // Both decimated the same way so an honest visual comparison (same point
+  // density either side) is what actually reaches the chart.
+  const ifftOriginalLine = useMemo(
+    () => ifftSelected ? decimateMinMax(ifftSelected.series, 1500, p => p.val) : [],
+    [ifftSelected],
+  );
+  const ifftReconLine = useMemo(
+    () => ifftFiltered ? decimateMinMax(ifftFiltered.recon, 1500, p => p.val) : [],
+    [ifftFiltered],
+  );
+
   const toggleRColumn = (col: string) => {
-    setSelectedRColumns(prev => 
+    setSelectedRColumns(prev =>
       prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]
     );
   };
@@ -4020,7 +4060,7 @@ export default function App() {
               ['dashboard', 'Dashboard'],
               ['raw', 'Raw Data'], ['assemble', 'FFT Assemble'],
               ['torque', 'Torque'], ['landau', 'Landau Fan'], ['harmonics', 'Harmonics'], ['symmetry', 'Symmetry'], ['branch', 'Branch'],
-              ['lkfit', 'L-K Fit'], ['fftrange', 'FFT Range'],
+              ['lkfit', 'L-K Fit'], ['fftrange', 'FFT Range'], ['ifft', 'IFFT'],
             ];
             // Angle-dependent tools (Torque/Landau Fan/Harmonics/Symmetry/Branch)
             // assume a BLM sweep at fixed T; the temperature-sweep bucket has no
@@ -7640,6 +7680,157 @@ export default function App() {
                   </div>
                 )}
               </div>
+            </div>
+          ) : activeTab === 'ifft' ? (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="bg-[#141414] text-[#E4E3E0] border border-[#E4E3E0]/10">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-[#E4E3E0]/10 flex-wrap gap-3">
+                  <div className="flex items-center gap-3">
+                    <Activity size={18} className="text-[#F27D26]" />
+                    <div>
+                      <h3 className="text-lg font-serif italic font-bold">IFFT Verification</h3>
+                      <p className="text-[9px] font-mono opacity-40 mt-0.5">특정 주파수가 실제 신호인지, 재구성한 성분을 원본 ΔR(1/B)와 겹쳐서 확인합니다</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[9px] font-mono uppercase opacity-40">File · Column</span>
+                    <select
+                      value={ifftSelected?.key ?? ''}
+                      onChange={(e) => setIfftResultKey(e.target.value)}
+                      className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[10px] px-3 py-1.5 focus:outline-none focus:border-[#F27D26] cursor-pointer max-w-[280px]"
+                    >
+                      {landauSeriesList.map(s => (
+                        <option key={s.key} value={s.key} className="bg-[#141414]">{s.blm}° · {s.col}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {ifftSelected && ifftSelected.result.detectedPeaks.length > 0 && (
+                  <div className="flex items-center gap-2 flex-wrap px-6 py-3 border-b border-[#E4E3E0]/10">
+                    <span className="text-[9px] font-mono uppercase opacity-40 mr-1">Detected peaks:</span>
+                    {ifftSelected.result.detectedPeaks.slice(0, 8).map((p, i) => {
+                      const isSelected = !!ifftBand && p.frequency >= ifftBand.lo && p.frequency <= ifftBand.hi;
+                      return (
+                        <button
+                          key={i}
+                          onClick={() => {
+                            const halfWidth = Math.max(2, p.frequency * 0.08);
+                            setIfftBandLo(Math.max(0, p.frequency - halfWidth));
+                            setIfftBandHi(p.frequency + halfWidth);
+                          }}
+                          className={`px-2.5 py-1 font-mono text-[10px] border transition-colors ${
+                            isSelected ? 'bg-[#F27D26]/20 border-[#F27D26] text-[#F27D26]' : 'bg-white/5 border-white/10 hover:bg-white/10'
+                          }`}
+                        >
+                          {p.frequency.toFixed(1)} T
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-4 px-6 py-3 flex-wrap">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[8px] font-mono uppercase opacity-40">Band</span>
+                    <input type="number" step="1" value={ifftBandLo || ''} placeholder="lo"
+                      ref={wheelStepRef(ifftBandLo, (v: number) => setIfftBandLo(Math.max(0, v)), 1)}
+                      onChange={e => setIfftBandLo(Math.max(0, parseFloat(e.target.value) || 0))}
+                      className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[9px] w-16 px-1.5 py-0.5 text-center focus:outline-none focus:border-[#F27D26]" />
+                    <span className="text-[8px] font-mono opacity-30">–</span>
+                    <input type="number" step="1" value={ifftBandHi || ''} placeholder="hi"
+                      ref={wheelStepRef(ifftBandHi, (v: number) => setIfftBandHi(Math.max(0, v)), 1)}
+                      onChange={e => setIfftBandHi(Math.max(0, parseFloat(e.target.value) || 0))}
+                      className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[9px] w-16 px-1.5 py-0.5 text-center focus:outline-none focus:border-[#F27D26]" />
+                    <span className="text-[8px] font-mono opacity-30">T</span>
+                    <button onClick={() => { setIfftBandLo(0); setIfftBandHi(0); }}
+                      className={`px-1.5 py-0.5 font-mono text-[8px] uppercase border transition-all ${ifftBand === null ? 'border-[#F27D26] text-[#F27D26] bg-[#F27D26]/10' : 'border-[#E4E3E0]/15 opacity-40 hover:opacity-70'}`}
+                      title="Auto: center the band on the dominant peak">Auto</button>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[8px] font-mono uppercase opacity-40">Edge</span>
+                    <input type="number" step="0.05" min="0" max="1" value={ifftEdge}
+                      onChange={e => setIfftEdge(Math.max(0, Math.min(1, parseFloat(e.target.value) || 0)))}
+                      className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[9px] w-14 px-1.5 py-0.5 text-center focus:outline-none focus:border-[#F27D26]" />
+                  </div>
+                </div>
+              </div>
+
+              {landauSeriesList.length === 0 ? (
+                <div className="bg-[#141414] text-[#E4E3E0] border border-[#E4E3E0]/10 flex items-center justify-center h-40 text-[11px] font-mono opacity-50 text-center px-8">
+                  No processed ΔR(1/B) yet. Go to the Dashboard, pick a column prefix, and click “Process All” first.
+                </div>
+              ) : (() => {
+                const band = ifftFiltered?.band;
+                const specMax = ifftFiltered ? Math.max((band?.hi ?? 0) * 1.6, ifftFiltered.peakF * 3.5, 100) : 0;
+                const specView = ifftFiltered ? ifftFiltered.spectrum.filter(p => p.frequency <= specMax) : [];
+                return (
+                  <>
+                    {specView.length > 0 && (
+                      <div className="bg-[#141414] text-[#E4E3E0] p-6 border border-[#E4E3E0]/10">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <h4 className="text-[11px] font-mono uppercase tracking-widest opacity-50">FFT Spectrum — pick the band to test</h4>
+                            <p className="text-[10px] font-mono mt-0.5 text-[#F27D26]">band {band!.lo.toFixed(1)}–{band!.hi.toFixed(1)} T <span className="opacity-40 text-[#E4E3E0]">{ifftBand === null ? '(auto: dominant peak)' : '(manual)'}</span></p>
+                          </div>
+                        </div>
+                        <div className="h-[180px] w-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <ComposedChart data={specView} margin={{ bottom: 16, left: 10, right: 10 }}>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#222" />
+                              <XAxis dataKey="frequency" type="number" domain={[0, specMax]}
+                                tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }}
+                                tickFormatter={(v: number) => v.toFixed(0)}
+                                label={{ value: 'F (T)', position: 'insideBottom', offset: 8, fill: '#E4E3E0', fontSize: 9 }} />
+                              <YAxis tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }}
+                                tickFormatter={(v: number) => v.toExponential(0)} width={50} />
+                              <Tooltip contentStyle={{ backgroundColor: '#141414', border: '1px solid #333', fontSize: '9px', color: '#E4E3E0' }}
+                                formatter={(v: any) => [typeof v === 'number' ? v.toExponential(3) : v, 'Amp']}
+                                labelFormatter={(v: number) => `F = ${Number(v).toFixed(1)} T`} />
+                              {band && band.hi > band.lo && <ReferenceArea x1={band.lo} x2={band.hi} fill="#F27D26" fillOpacity={0.15} stroke="#F27D26" strokeOpacity={0.4} />}
+                              <Area type="linear" dataKey="amplitude" stroke="#4ADE80" fill="#4ADE80" fillOpacity={0.15} strokeWidth={1} dot={false} isAnimationActive={false} />
+                            </ComposedChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="bg-[#141414] text-[#E4E3E0] p-6 border border-[#E4E3E0]/10">
+                      <div className="flex justify-between items-start mb-3 flex-wrap gap-2">
+                        <div>
+                          <h4 className="text-[11px] font-mono uppercase tracking-widest opacity-50">Raw ΔR vs Reconstructed Single Component</h4>
+                          <p className="text-[10px] font-mono mt-0.5 opacity-60">
+                            {ifftSelected?.blm}° · {ifftSelected?.col} — 재구성된 성분(주황)이 실제 데이터(회색)의 굴곡과 맞아떨어지면 진짜 신호, 그렇지 않으면 노이즈일 가능성이 높습니다.
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3 text-[9px] font-mono shrink-0">
+                          <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-[#E4E3E0]/50 inline-block" />raw ΔR</span>
+                          <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-[#F27D26] inline-block" />reconstructed</span>
+                        </div>
+                      </div>
+                      <div className="h-[340px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <ComposedChart margin={{ bottom: 20, left: 10, right: 10 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#222" />
+                            <XAxis dataKey="invB" type="number" domain={['dataMin', 'dataMax']}
+                              tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }}
+                              tickFormatter={(v: number) => v.toFixed(3)}
+                              label={{ value: '1/B (T⁻¹)', position: 'insideBottom', offset: 10, fill: '#E4E3E0', fontSize: 9 }} />
+                            <YAxis dataKey="val" type="number" tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }}
+                              tickFormatter={(v: number) => v.toExponential(1)} width={60}
+                              label={{ value: 'ΔR', angle: -90, position: 'insideLeft', fill: '#E4E3E0', fontSize: 9 }} />
+                            <Tooltip contentStyle={{ backgroundColor: '#141414', border: '1px solid #333', fontSize: '9px', color: '#E4E3E0' }}
+                              formatter={(v: any) => [typeof v === 'number' ? v.toExponential(4) : v]}
+                              labelFormatter={(v: number) => `1/B = ${Number(v).toFixed(4)} (B = ${(1 / v).toFixed(2)} T)`} />
+                            <Line data={ifftOriginalLine} dataKey="val" stroke="#E4E3E0" strokeOpacity={0.5} strokeWidth={1} dot={false} isAnimationActive={false} name="Raw ΔR" />
+                            <Line data={ifftReconLine} dataKey="val" stroke="#F27D26" strokeWidth={1.75} dot={false} isAnimationActive={false} name="Reconstructed" />
+                          </ComposedChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           ) : (
             <>
