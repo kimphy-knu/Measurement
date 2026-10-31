@@ -19,5 +19,8 @@ desktop.ini
 !/package-lock.json
 !/tsconfig.json
 !/metadata.json
-!/firebase-applet-config.json
-!/firebase-blueprint.json
+
+# Unused AI Studio Firebase config — carries a Google API key; keep it local.
+/firebase-applet-config.json
+/firebase-blueprint.json
+/firestore.rules
