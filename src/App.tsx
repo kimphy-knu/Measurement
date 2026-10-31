@@ -36,7 +36,6 @@ import {
   AlertCircle,
   RefreshCw,
   Copy,
-  LogOut,
   History,
   GitBranch,
   Layers,
@@ -67,16 +66,14 @@ import {
   computeLandauFan, landauSpectrumAndFilter,
 } from './lib/landau';
 import { MiniFFT } from './components/MiniFFT';
-import { getStoredAccount, clearAccount } from './lib/auth';
 import { saveText } from './lib/download';
 
 // ---------- Local user (no Firebase auth required) ----------
-// The identity shown in the header comes from the access gate the app is
-// wrapped in (src/components/LoginGate.tsx); there is no account system behind
-// it, so the id is a label rather than a principal.
+// There is no account system; this fixed identity only satisfies the
+// persistence effects that wait for a user before reading localStorage.
 const localUser = (): LocalUser => ({
   uid: 'local-user',
-  displayName: getStoredAccount() ?? 'Local User',
+  displayName: 'Local User',
   email: 'Local session',
   photoURL: null,
 });
@@ -1315,15 +1312,6 @@ export default function App() {
     setUser(localUser());
     setIsAuthReady(true);
   }, []);
-
-  // Signing out drops back to the gate. Everything in this session lives in
-  // memory — only "Save Session" puts it on disk — so the reload would discard
-  // unsaved work silently without this confirmation.
-  const handleLogout = async () => {
-    if (!window.confirm('로그아웃하시겠습니까?\n저장하지 않은 작업은 사라집니다.')) return;
-    clearAccount();
-    window.location.reload();
-  };
 
   // --- Persistence: Load Preferences (localStorage) ---
   useEffect(() => {
@@ -4135,18 +4123,6 @@ export default function App() {
               {files.length > 0 ? 'Add Files' : 'Upload Data'}
               <input type="file" accept=".csv,.dat,.txt" onChange={handleFileUploadIntoActiveBucket} className="hidden" multiple />
             </label>
-            {isAuthReady && user && (
-              <div className="flex items-center gap-1 pl-3 ml-1 border-l border-white/10">
-                <span className="hidden sm:inline text-[10px] font-mono font-bold uppercase tracking-widest opacity-70">{user.displayName}</span>
-                <button
-                  onClick={handleLogout}
-                  className="p-1.5 opacity-60 hover:opacity-100 hover:text-red-400 transition-colors"
-                  title="Sign Out"
-                >
-                  <LogOut size={14} />
-                </button>
-              </div>
-            )}
           </div>
         </div>
       </header>
