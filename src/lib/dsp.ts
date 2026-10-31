@@ -79,6 +79,153 @@ export function applySmoothingOpt(data: number[], windowLen: number): number[] {
   return result;
 }
 
+// Segmented-regression changepoint: the field beyond which a trend's slope
+// changes (e.g. R(B) turns over and starts decreasing). Fits two independent
+// least-squares lines on either side of every candidate breakpoint — O(1)
+// per candidate via prefix sums, O(n) overall — and returns the breakpoint
+// that minimizes total squared error. Judging each candidate by how well a
+// whole segment fits (rather than point-to-point behavior, the way a
+// derivative does) is what makes this tolerant of noisy sweeps.
+export function findChangepoint(
+  points: { b: number; val: number }[],
+  minSegFrac = 0.1,
+  minSegAbs = 5,
+): {
+  breakB: number; breakIdx: number;
+  leftSlope: number; leftIntercept: number;
+  rightSlope: number; rightIntercept: number;
+  totalSSE: number; singleSSE: number; improvement: number;
+} | null {
+  const n = points.length;
+  const minSeg = Math.max(minSegAbs, Math.floor(n * minSegFrac));
+  if (n < minSeg * 2 + 1) return null;
+
+  const px = new Float64Array(n + 1), py = new Float64Array(n + 1);
+  const pxx = new Float64Array(n + 1), pxy = new Float64Array(n + 1), pyy = new Float64Array(n + 1);
+  for (let i = 0; i < n; i++) {
+    const x = points[i].b, y = points[i].val;
+    px[i + 1] = px[i] + x;
+    py[i + 1] = py[i] + y;
+    pxx[i + 1] = pxx[i] + x * x;
+    pxy[i + 1] = pxy[i] + x * y;
+    pyy[i + 1] = pyy[i] + y * y;
+  }
+
+  // Closed-form OLS line over the half-open range [lo, hi) via prefix sums.
+  const fitRange = (lo: number, hi: number) => {
+    const m = hi - lo;
+    const Sx = px[hi] - px[lo], Sy = py[hi] - py[lo];
+    const Sxx = pxx[hi] - pxx[lo], Sxy = pxy[hi] - pxy[lo], Syy = pyy[hi] - pyy[lo];
+    const denom = m * Sxx - Sx * Sx;
+    if (!(Math.abs(denom) > 1e-12)) return null;
+    const slope = (m * Sxy - Sx * Sy) / denom;
+    const intercept = (Sy - slope * Sx) / m;
+    const sse = Math.max(0, Syy - slope * Sxy - intercept * Sy);
+    return { slope, intercept, sse };
+  };
+
+  const whole = fitRange(0, n);
+  if (!whole) return null;
+
+  let best: { idx: number; sse: number; left: NonNullable<ReturnType<typeof fitRange>>; right: NonNullable<ReturnType<typeof fitRange>> } | null = null;
+  for (let k = minSeg; k <= n - minSeg; k++) {
+    const left = fitRange(0, k);
+    const right = fitRange(k, n);
+    if (!left || !right) continue;
+    const total = left.sse + right.sse;
+    if (!best || total < best.sse) best = { idx: k, sse: total, left, right };
+  }
+  if (!best) return null;
+
+  return {
+    breakB: points[best.idx].b, breakIdx: best.idx,
+    leftSlope: best.left.slope, leftIntercept: best.left.intercept,
+    rightSlope: best.right.slope, rightIntercept: best.right.intercept,
+    totalSSE: best.sse, singleSSE: whole.sse,
+    improvement: whole.sse > 0 ? 1 - best.sse / whole.sse : 0,
+  };
+}
+
+// Multiple changepoints via binary segmentation: repeatedly split whichever
+// pending segment currently offers the largest ABSOLUTE squared-error
+// reduction, then re-consider its two halves as new candidates, until
+// `maxBreaks` breaks are found or no remaining segment clears
+// `minImprovement`. A single global findChangepoint() can be dominated by
+// one sharp, narrow feature (e.g. a small hump) even when a broader, gentler
+// bend elsewhere is the one that matters — this surfaces both, ranked by how
+// much of the data's variance each actually explains, so a real second bend
+// doesn't stay hidden behind a bigger local one.
+export function findChangepoints(
+  points: { b: number; val: number }[],
+  maxBreaks = 4,
+  minSegFrac = 0.1,
+  minSegAbs = 5,
+  minImprovement = 0.02,
+): Array<NonNullable<ReturnType<typeof findChangepoint>> & { absReduction: number }> {
+  type Candidate = NonNullable<ReturnType<typeof findChangepoint>> & { absReduction: number; lo: number; hi: number };
+  const results: Candidate[] = [];
+
+  const bestSplitFor = (lo: number, hi: number): Candidate | null => {
+    const cp = findChangepoint(points.slice(lo, hi), minSegFrac, minSegAbs);
+    if (!cp || cp.improvement < minImprovement) return null;
+    return { ...cp, breakIdx: lo + cp.breakIdx, absReduction: cp.singleSSE - cp.totalSSE, lo, hi };
+  };
+
+  let pending: Candidate[] = [];
+  const first = bestSplitFor(0, points.length);
+  if (first) pending.push(first);
+
+  while (results.length < maxBreaks && pending.length > 0) {
+    pending.sort((a, b) => b.absReduction - a.absReduction);
+    const picked = pending.shift()!;
+    results.push(picked);
+    const left = bestSplitFor(picked.lo, picked.breakIdx);
+    const right = bestSplitFor(picked.breakIdx, picked.hi);
+    if (left) pending.push(left);
+    if (right) pending.push(right);
+  }
+
+  return results.sort((a, b) => a.breakB - b.breakB);
+}
+
+// Where a curve first sustains a departure from an established baseline line
+// — used to find the *start* of a bend, as distinct from findChangepoint's
+// breakB (the two-line model's best-fit meeting point, which for a gradual,
+// smoothly-curving transition sits closer to its middle than its beginning).
+// `referencePts` (typically the pre-transition segment) sets the noise floor
+// σ; `scanPts` (typically the whole search range) is walked in order for the
+// first sustained departure beyond `thresholdSigma·σ`.
+export function findBaselineOnset(
+  scanPts: { b: number; val: number }[],
+  baseline: (b: number) => number,
+  referencePts: { b: number; val: number }[],
+  thresholdSigma = 4,
+  consecutiveNeeded = 5,
+): number | null {
+  if (referencePts.length === 0) return null;
+  const refResiduals = referencePts.map(p => p.val - baseline(p.b));
+  const mean = refResiduals.reduce((a, b) => a + b, 0) / refResiduals.length;
+  const sigma = Math.sqrt(refResiduals.reduce((a, r) => a + (r - mean) ** 2, 0) / refResiduals.length);
+  if (!(sigma > 0)) return null;
+
+  const cutoff = thresholdSigma * sigma;
+  const absResiduals = scanPts.map(p => Math.abs(p.val - baseline(p.b)));
+  const smoothed = applySmoothingOpt(absResiduals, 7);
+
+  let streak = 0, streakStartIdx = -1;
+  for (let i = 0; i < smoothed.length; i++) {
+    if (smoothed[i] > cutoff) {
+      if (streak === 0) streakStartIdx = i;
+      streak++;
+      if (streak >= consecutiveNeeded) return scanPts[streakStartIdx].b;
+    } else {
+      streak = 0;
+      streakStartIdx = -1;
+    }
+  }
+  return null;
+}
+
 // Single-pass linear interpolation onto uniform grid (replaces 1024× sortedIndexBy)
 export function linearInterpUniform(
   sorted: { invB: number; deltaR: number }[],

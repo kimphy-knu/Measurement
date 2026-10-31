@@ -7,3 +7,17 @@ desktop.ini
 *.log
 .env*
 !.env.example
+
+# Measurement data and saved sessions kept beside the source. These are
+# unpublished results — they must never be committed or deployed. Only
+# root-level files are matched, so nothing under src/ is affected.
+/*.json
+/*.txt
+/*.dat
+/*.csv
+!/package.json
+!/package-lock.json
+!/tsconfig.json
+!/metadata.json
+!/firebase-applet-config.json
+!/firebase-blueprint.json

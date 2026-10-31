@@ -36,7 +36,6 @@ import {
   AlertCircle,
   RefreshCw,
   Copy,
-  LogIn,
   LogOut,
   History,
   GitBranch,
@@ -58,24 +57,29 @@ import { lsGetPrefs, lsSavePrefs } from './lib/localPrefs';
 import { dropQuadratureStrict } from './lib/quadrature';
 import {
   getWindowCached, getFftInstance, applySpikeRemovalOpt, applySmoothingOpt,
-  linearInterpUniform, decimateMinMax, downsampleFFT,
+  linearInterpUniform, decimateMinMax, downsampleFFT, findChangepoint, findChangepoints, findBaselineOnset,
   buildOlsModel, olsSolve, olsR2, cosineDesign, sineFourierDesign,
   fitCosineSeries, lerpFast, fitPolynomialH, buildFourierResult,
 } from './lib/dsp';
 import {
-  oscillationOnsetB, OSC_SCORE_MIN, OSC_WINDOW_FRAC, angleFromFileName,
+  oscillationOnsetB, OSC_SCORE_MIN, OSC_WINDOW_FRAC, angleFromFileName, temperatureFromFileName,
   guessFieldColumn, splitSweepDirections, fileSignalColumns, fileOscillationScore,
   computeLandauFan, landauSpectrumAndFilter,
 } from './lib/landau';
 import { MiniFFT } from './components/MiniFFT';
+import { getStoredAccount, clearAccount } from './lib/auth';
+import { saveText } from './lib/download';
 
 // ---------- Local user (no Firebase auth required) ----------
-const LOCAL_USER: LocalUser = {
+// The identity shown in the header comes from the access gate the app is
+// wrapped in (src/components/LoginGate.tsx); there is no account system behind
+// it, so the id is a label rather than a principal.
+const localUser = (): LocalUser => ({
   uid: 'local-user',
-  displayName: 'Local User',
-  email: 'local@localhost',
+  displayName: getStoredAccount() ?? 'Local User',
+  email: 'Local session',
   photoURL: null,
-};
+});
 
 // --- Components ---
 
@@ -233,6 +237,21 @@ export default function App() {
   const [maxDerivPlotData, setMaxDerivPlotData] = useState<{ x: number; y: number; fileName: string; columnName: string }[]>([]);
   const [maxDerivMinB, setMaxDerivMinB] = useState<number>(1);
   const [maxDerivMaxB, setMaxDerivMaxB] = useState<number>(16);
+  // Polynomial-deviation transition field: fit a polynomial background over
+  // [devFitMinB, devFitMaxB] (a clean, feature-free stretch), then walk the
+  // field outward from that window and flag where the (smoothed) residual
+  // departs from the fit — either the onset of departure or its peak. Built
+  // as an alternative to the dR/dB method above because raw differentiation
+  // amplifies noise on rough sweeps; smoothing the residual instead of the
+  // derivative keeps single-point noise from dominating the result.
+  const [devPlotData, setDevPlotData] = useState<{ x: number; y: number; fileName: string; columnName: string }[]>([]);
+  const [devFitMinB, setDevFitMinB] = useState<number>(1);
+  const [devFitMaxB, setDevFitMaxB] = useState<number>(8);
+  const [devPolyDegree, setDevPolyDegree] = useState<number>(3);
+  const [devThresholdSigma, setDevThresholdSigma] = useState<number>(4);
+  const [devDirection, setDevDirection] = useState<'increasing' | 'decreasing'>('increasing');
+  const [devMode, setDevMode] = useState<'onset' | 'peak' | 'changepoint'>('onset');
+  const [devSeriesKey, setDevSeriesKey] = useState<string>(''); // Raw Deriv tab: which allRawSeries entry to inspect
   const [fieldSliceValues, setFieldSliceValues] = useState<number[]>([1, 5, 10, 15, 20, 25, 30]);
   const [fieldSliceInput, setFieldSliceInput] = useState<string>('');
   const [rawBSliceTarget, setRawBSliceTarget] = useState<number | null>(null); // null = Max B
@@ -263,6 +282,9 @@ export default function App() {
   const [ifftBandLo, setIfftBandLo] = useState<number>(0);   // 0,0 ⇒ auto (dominant peak)
   const [ifftBandHi, setIfftBandHi] = useState<number>(0);
   const [ifftEdge, setIfftEdge] = useState<number>(0.25);
+  // Detected-peak chips clicked "on" for combined verification — click a second
+  // frequency to reconstruct and overlay the sum of both components at once.
+  const [ifftSelectedPeakFreqs, setIfftSelectedPeakFreqs] = useState<number[]>([]);
   const [tauSampleVol, setTauSampleVol] = useState<number>(1.0);
   const [tauFourierNMax, setTauFourierNMax] = useState<number>(6);
   const [tauScaleFieldsStr, setTauScaleFieldsStr] = useState<string>('2,5,10,15,20');
@@ -350,13 +372,7 @@ export default function App() {
   }, [files, resolveBlm]);
 
   const downloadCSV = (content: string, filename: string) => {
-    const blob = new Blob([content], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
+    saveText(content, filename, 'text/csv');
   };
 
   // Export ALL columns from every file — wide format
@@ -785,13 +801,7 @@ export default function App() {
     }
 
     // 5. Download
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `raw_data_all_files.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    saveText(csv, `raw_data_all_files.csv`, 'text/csv');
   };
 
   // Branch Analysis State
@@ -1283,7 +1293,7 @@ export default function App() {
   const [symmetryCenter, setSymmetryCenter] = useState<number>(0);
   const [symmetryMaxFreq, setSymmetryMaxFreq] = useState<number>(5000);
   const [symmetryMinFreq, setSymmetryMinFreq] = useState<number>(0);
-  const [appMode, setAppMode] = useState<'sdh'>('sdh');
+  const [appMode] = useState<'sdh'>('sdh');
   const [isProcessing, setIsProcessing] = useState(false);
   const [batchSummary, setBatchSummary] = useState<{ blm: number; freq: number; amp: number; fileName: string; id: string; temp: number }[]>([]);
 
@@ -1300,14 +1310,20 @@ export default function App() {
     if (activeTab === 'raw' || activeTab === 'torque') setScansArmed(true);
   }, [activeTab]);
 
-  // --- Local Auth (always signed in as local user) ---
+  // --- Local Auth (the access gate has already run by the time App mounts) ---
   useEffect(() => {
-    setUser(LOCAL_USER);
+    setUser(localUser());
     setIsAuthReady(true);
   }, []);
 
-  const handleLogin = async () => { /* no-op in local mode */ };
-  const handleLogout = async () => { /* no-op in local mode */ };
+  // Signing out drops back to the gate. Everything in this session lives in
+  // memory — only "Save Session" puts it on disk — so the reload would discard
+  // unsaved work silently without this confirmation.
+  const handleLogout = async () => {
+    if (!window.confirm('로그아웃하시겠습니까?\n저장하지 않은 작업은 사라집니다.')) return;
+    clearAccount();
+    window.location.reload();
+  };
 
   // --- Persistence: Load Preferences (localStorage) ---
   useEffect(() => {
@@ -1356,6 +1372,12 @@ export default function App() {
       if (data.symmetryMinFreq !== undefined) setSymmetryMinFreq(data.symmetryMinFreq);
       if (data.maxDerivMinB !== undefined) setMaxDerivMinB(data.maxDerivMinB);
       if (data.maxDerivMaxB !== undefined) setMaxDerivMaxB(data.maxDerivMaxB);
+      if (data.devFitMinB !== undefined) setDevFitMinB(data.devFitMinB);
+      if (data.devFitMaxB !== undefined) setDevFitMaxB(data.devFitMaxB);
+      if (data.devPolyDegree !== undefined) setDevPolyDegree(data.devPolyDegree);
+      if (data.devThresholdSigma !== undefined) setDevThresholdSigma(data.devThresholdSigma);
+      if (data.devDirection !== undefined) setDevDirection(data.devDirection);
+      if (data.devMode !== undefined) setDevMode(data.devMode);
     }
     isInitialLoad.current = false;
   }, [isAuthReady, user]);
@@ -1386,6 +1408,7 @@ export default function App() {
         selectedPrefix, branchTolerance, minPeaksPerBranch, symmetryCenter,
         symmetryMaxFreq, symmetryMinFreq, maxDerivMinB, maxDerivMaxB,
         minPeakWidth, autoThreshold,
+        devFitMinB, devFitMaxB, devPolyDegree, devThresholdSigma, devDirection, devMode,
       });
     }, 1000);
     return () => clearTimeout(timeoutId);
@@ -1397,6 +1420,7 @@ export default function App() {
     selectedPrefix, branchTolerance, minPeaksPerBranch, symmetryCenter,
     symmetryMaxFreq, symmetryMinFreq, maxDerivMinB, maxDerivMaxB,
     minPeakWidth, autoThreshold,
+    devFitMinB, devFitMaxB, devPolyDegree, devThresholdSigma, devDirection, devMode,
   ]);
   const polyfit = useCallback((x: number[], y: number[], degree: number) => {
     const X = x.map(xi => {
@@ -1413,6 +1437,193 @@ export default function App() {
     const coeffs = math.lusolve(XTX, XTy) as any;
     return coeffs.toArray().map((c: any) => c[0]);
   }, []);
+
+  // Raw Deriv tab: diagnostic view for one raw R(B) series — the polynomial
+  // fit over [devFitMinB, devFitMaxB], its extrapolation into the search arm,
+  // and the (signed + smoothed) residual the onset/peak detector actually
+  // scans, plus the plain-derivative comparison. Neither method ever touches
+  // the other's output: the derivative is dR/dB of the raw R(B) samples
+  // directly, not of the polynomial residual — the polynomial fit only feeds
+  // the residual/onset side of this comparison.
+  const devDiagnostic = useMemo(() => {
+    if (allRawSeries.length === 0) return null;
+    const found = allRawSeries.find(s => `${s.fileName}::${s.columnName}` === devSeriesKey) || allRawSeries[0];
+
+    // allRawSeries[].data is downsampled for the overview chart — re-derive
+    // full-resolution B/R pairs from the source file so the fit, residual and
+    // derivative here match the precision of the batch computation exactly.
+    const sourceFile = files.find(f => f.name === found.fileName);
+    let sortedByB: { b: number; val: number }[];
+    if (sourceFile) {
+      const bCol = resolveBCol(sourceFile);
+      const pts: { b: number; val: number }[] = [];
+      for (const row of sourceFile.data) {
+        const b = parseFloat(String(row[bCol]));
+        const val = parseFloat(String(row[found.columnName]));
+        if (!isNaN(b) && !isNaN(val)) pts.push({ b, val });
+      }
+      sortedByB = pts.sort((a, b) => a.b - b.b);
+    } else {
+      sortedByB = [...found.data].sort((a, b) => a.b - b.b);
+    }
+
+    const rawForChart = decimateMinMax(sortedByB, 1500, (p: { b: number; val: number }) => p.val);
+
+    // Comparison method requested alongside the polynomial-residual approach:
+    // the plain "smooth |dR/dB| then take the peak" technique already used by
+    // the Peak Transition Field panel (same range, same window-7 smoothing),
+    // computed here for the single series being inspected so both methods can
+    // be read off the same B axis.
+    const derivRangePts = sortedByB.filter(d => d.b >= maxDerivMinB && d.b <= maxDerivMaxB);
+    let derivPeakB: number | null = null;
+    let derivPeakPinned = false; // peak sits right at the range edge — |dR/dB| was still rising/falling there, so there's no real interior peak to report
+    let derivativeChart: { b: number; deriv: number }[] = [];
+    if (derivRangePts.length > 5) {
+      const rawDerivs: { b: number; deriv: number }[] = [];
+      for (let i = 1; i < derivRangePts.length; i++) {
+        const dB = derivRangePts[i].b - derivRangePts[i - 1].b;
+        const dR = derivRangePts[i].val - derivRangePts[i - 1].val;
+        if (dB !== 0) rawDerivs.push({ b: (derivRangePts[i].b + derivRangePts[i - 1].b) / 2, deriv: Math.abs(dR / dB) });
+      }
+      const derivSmoothed = applySmoothingOpt(rawDerivs.map(d => d.deriv), 7);
+      derivativeChart = rawDerivs.map((d, i) => ({ b: d.b, deriv: derivSmoothed[i] }));
+      if (derivativeChart.length > 0) {
+        let peakIdx = 0;
+        for (let i = 1; i < derivativeChart.length; i++) if (derivativeChart[i].deriv > derivativeChart[peakIdx].deriv) peakIdx = i;
+        derivPeakB = derivativeChart[peakIdx].b;
+        const edgeGuard = Math.max(3, Math.floor(derivativeChart.length * 0.02));
+        derivPeakPinned = peakIdx < edgeGuard || peakIdx > derivativeChart.length - 1 - edgeGuard;
+      }
+    }
+
+    const base = {
+      fileName: found.fileName, columnName: found.columnName, blm: found.blm, sortedByB, rawForChart,
+      derivPeakB, derivPeakPinned, derivativeChart,
+    };
+
+    // 'changepoint': scan [devFitMinB, devFitMaxB] as a single search range for
+    // the best two-line breakpoint — no separate fit-window/search-arm split,
+    // since the whole point is to find where the trend itself bends.
+    if (devMode === 'changepoint') {
+      const searchPts = sortedByB.filter(d => d.b >= devFitMinB && d.b <= devFitMaxB);
+      const cp = findChangepoint(searchPts);
+      if (!cp) return { ...base, valid: false as const };
+
+      // A single global breakpoint can be dominated by one sharp, narrow
+      // feature even when a broader, gentler bend elsewhere is the one that
+      // matters (e.g. a small low-field hump vs. the gradual high-field
+      // turnover). Surface the next few candidates too, ranked by how much
+      // variance each actually explains, so a real second bend isn't hidden.
+      const candidates = findChangepoints(searchPts, 4);
+
+      const evalPiecewise = (b: number) => b < cp.breakB
+        ? cp.leftIntercept + cp.leftSlope * b
+        : cp.rightIntercept + cp.rightSlope * b;
+
+      // Only drawn across the search range itself — extrapolating either
+      // segment's straight line across the full sweep would be misleading.
+      const fitCurve: { b: number; fit: number }[] = searchPts.map(p => ({ b: p.b, fit: evalPiecewise(p.b) }));
+      const residualChart = searchPts.map(p => {
+        const r = p.val - evalPiecewise(p.b);
+        return { b: p.b, residual: r, smoothed: r };
+      });
+
+      // breakB is the two-line model's best-fit meeting point — for a
+      // gradual, smoothly-curving transition that's closer to the middle of
+      // the bend than its start. Extrapolate the pre-break line (the
+      // established baseline) forward and find where the data first
+      // sustains a real departure from it — that's the onset, and it's what
+      // gets reported as the primary field for this mode.
+      const baselinePts = searchPts.filter(p => p.b < cp.breakB);
+      const baseline = (b: number) => cp.leftIntercept + cp.leftSlope * b;
+      const onsetB = findBaselineOnset(searchPts, baseline, baselinePts, devThresholdSigma);
+
+      return {
+        ...base, valid: true as const, detectedB: onsetB ?? cp.breakB, onsetB,
+        sigma: null, cutoff: null, changepoint: cp, changepointCandidates: candidates, fitCurve, residualChart,
+      };
+    }
+
+    // 'onset' / 'peak': fit a background polynomial over [devFitMinB,
+    // devFitMaxB] and walk outward from it (in devDirection).
+    const fitPts = sortedByB.filter(d => d.b >= devFitMinB && d.b <= devFitMaxB);
+    const armPts = devDirection === 'increasing'
+      ? sortedByB.filter(d => d.b > devFitMaxB)
+      : [...sortedByB.filter(d => d.b < devFitMinB)].reverse();
+
+    if (fitPts.length <= devPolyDegree + 2 || armPts.length <= 5) {
+      return { ...base, valid: false as const };
+    }
+
+    const coeffs = polyfit(fitPts.map(d => d.b), fitPts.map(d => d.val), devPolyDegree);
+    const evalPoly = (b: number) => {
+      let val = 0;
+      for (let i = 0; i <= devPolyDegree; i++) val += coeffs[i] * Math.pow(b, i);
+      return val;
+    };
+    const fitResiduals = fitPts.map(d => d.val - evalPoly(d.b));
+    const fitMean = fitResiduals.reduce((a, b) => a + b, 0) / fitResiduals.length;
+    const sigma = Math.sqrt(fitResiduals.reduce((a, r) => a + (r - fitMean) ** 2, 0) / fitResiduals.length);
+    const cutoff = devThresholdSigma * sigma;
+
+    const armResidualsSigned = armPts.map(d => d.val - evalPoly(d.b));
+    const armResidualsAbs = armResidualsSigned.map(Math.abs);
+    const smoothedAbs = applySmoothingOpt(armResidualsAbs, 7);
+    const smoothedSigned = applySmoothingOpt(armResidualsSigned, 7);
+
+    let detectedB: number | null = null;
+    if (sigma > 0) {
+      if (devMode === 'onset') {
+        const consecutiveNeeded = 5;
+        let streak = 0, streakStartIdx = -1;
+        for (let i = 0; i < smoothedAbs.length; i++) {
+          if (smoothedAbs[i] > cutoff) {
+            if (streak === 0) streakStartIdx = i;
+            streak++;
+            if (streak >= consecutiveNeeded) { detectedB = armPts[streakStartIdx].b; break; }
+          } else { streak = 0; streakStartIdx = -1; }
+        }
+      } else {
+        let peakIdx = 0;
+        for (let i = 1; i < smoothedAbs.length; i++) if (smoothedAbs[i] > smoothedAbs[peakIdx]) peakIdx = i;
+        if (smoothedAbs[peakIdx] > cutoff) detectedB = armPts[peakIdx].b;
+      }
+    }
+
+    const rangeLo = Math.min(sortedByB[0].b, devFitMinB);
+    const rangeHi = Math.max(sortedByB[sortedByB.length - 1].b, devFitMaxB);
+    const fitCurveN = 200;
+    const fitCurve: { b: number; fit: number }[] = [];
+    for (let i = 0; i < fitCurveN; i++) {
+      const b = rangeLo + (i / (fitCurveN - 1)) * (rangeHi - rangeLo);
+      fitCurve.push({ b, fit: evalPoly(b) });
+    }
+
+    const residualChart = armPts.map((p, i) => ({ b: p.b, residual: armResidualsSigned[i], smoothed: smoothedSigned[i] }));
+
+    return { ...base, valid: true as const, sigma, cutoff, detectedB, changepoint: null, changepointCandidates: null, onsetB: null, fitCurve, residualChart };
+  }, [allRawSeries, files, resolveBCol, devSeriesKey, devFitMinB, devFitMaxB, devPolyDegree, devThresholdSigma, devDirection, devMode, maxDerivMinB, maxDerivMaxB, polyfit]);
+
+  // Side-by-side comparison of the two transition-field methods, one row per
+  // file+column: the polynomial-residual field (devPlotData) next to the
+  // plain smoothed-|dR/dB|-peak field (maxDerivPlotData, already computed in
+  // handleProcessAll for the Peak Transition Field panel).
+  const devComparisonRows = useMemo(() => {
+    const map = new Map<string, { blm: number; fileName: string; columnName: string; polyB: number | null; derivB: number | null }>();
+    devPlotData.forEach(d => {
+      const key = `${d.fileName}::${d.columnName}`;
+      const row = map.get(key) || { blm: d.x, fileName: d.fileName, columnName: d.columnName, polyB: null, derivB: null };
+      row.polyB = d.y;
+      map.set(key, row);
+    });
+    maxDerivPlotData.forEach(d => {
+      const key = `${d.fileName}::${d.columnName}`;
+      const row = map.get(key) || { blm: d.x, fileName: d.fileName, columnName: d.columnName, polyB: null, derivB: null };
+      row.derivB = d.y;
+      map.set(key, row);
+    });
+    return Array.from(map.values()).sort((a, b) => a.blm - b.blm);
+  }, [devPlotData, maxDerivPlotData]);
 
   const processFileData = useCallback((data: any[], bCol: string, rCol: string, rInCol?: string, rOutCol?: string, rangeOverride?: { min: number; max: number }): AnalysisResult | null => {
     if (!data || data.length < 10 || !bCol || (!rCol && (!rInCol || !rOutCol))) return null;
@@ -1689,15 +1900,13 @@ export default function App() {
     return getTemperature(file.metadata);
   }, [findTempColumn, getTemperature]);
 
-  // Temperature for the L-K fit: prefer a "...4.2K..." style pattern in the
-  // filename (temperature-sweep datasets name the file after the setpoint),
-  // falling back to the existing column/metadata-based resolver otherwise.
+  // Temperature for the L-K fit: prefer the filename (temperature-sweep
+  // datasets name each file after its setpoint — see temperatureFromFileName
+  // for the exact pattern priority), falling back to a temperature column or
+  // metadata only when the name itself carries nothing usable.
   const resolveTemperature = useCallback((file: FileEntry): number => {
-    const m = file.name.match(/(\d+(?:\.\d+)?)\s*[kK](?![a-zA-Z0-9])/);
-    if (m) {
-      const v = parseFloat(m[1]);
-      if (isFinite(v)) return v;
-    }
+    const fromName = temperatureFromFileName(file.name);
+    if (fromName != null) return fromName;
     return getFileTemperature(file);
   }, [getFileTemperature]);
 
@@ -2513,6 +2722,7 @@ export default function App() {
     selectedPrefix, branchTolerance, minPeaksPerBranch, symmetryCenter,
     symmetryMaxFreq, symmetryMinFreq, maxDerivMinB, maxDerivMaxB,
     minPeakWidth, autoThreshold, readAngleFromTitle, prefixLocked,
+    devFitMinB, devFitMaxB, devPolyDegree, devThresholdSigma, devDirection, devMode,
   }), [
     selectedBColumn, selectedRColumns, minB, maxB, polyDegree,
     interpPoints, windowType, spikeRemoval, spikeKernel, spikeThreshold,
@@ -2521,6 +2731,7 @@ export default function App() {
     selectedPrefix, branchTolerance, minPeaksPerBranch, symmetryCenter,
     symmetryMaxFreq, symmetryMinFreq, maxDerivMinB, maxDerivMaxB,
     minPeakWidth, autoThreshold, readAngleFromTitle, prefixLocked,
+    devFitMinB, devFitMaxB, devPolyDegree, devThresholdSigma, devDirection, devMode,
   ]);
 
   const applySettingsSnapshot = useCallback((data: Record<string, any>) => {
@@ -2557,6 +2768,12 @@ export default function App() {
     if (data.maxDerivMaxB !== undefined) setMaxDerivMaxB(data.maxDerivMaxB);
     if (data.readAngleFromTitle !== undefined) setReadAngleFromTitle(data.readAngleFromTitle);
     if (data.prefixLocked !== undefined) setPrefixLocked(data.prefixLocked);
+    if (data.devFitMinB !== undefined) setDevFitMinB(data.devFitMinB);
+    if (data.devFitMaxB !== undefined) setDevFitMaxB(data.devFitMaxB);
+    if (data.devPolyDegree !== undefined) setDevPolyDegree(data.devPolyDegree);
+    if (data.devThresholdSigma !== undefined) setDevThresholdSigma(data.devThresholdSigma);
+    if (data.devDirection !== undefined) setDevDirection(data.devDirection);
+    if (data.devMode !== undefined) setDevMode(data.devMode);
   }, []);
 
   const emptyTemperatureBucket = (settings: Record<string, any> = {}): TemperatureBucket => ({ groups: [], settings });
@@ -2742,7 +2959,17 @@ export default function App() {
   // to (re)establish the link.
   const sessionFileHandleRef = useRef<any>(null);
   const [linkedSessionFileName, setLinkedSessionFileName] = useState<string | null>(null);
-  const supportsFileSystemAccess = typeof window !== 'undefined' && typeof (window as any).showSaveFilePicker === 'function';
+  // Presence on `window` is not enough. Chrome defines showSaveFilePicker /
+  // showOpenFilePicker inside a cross-origin frame but refuses to open a picker
+  // for one, throwing SecurityError at call time — and the published Artifact
+  // runs the app in exactly such a frame. Checking only for the function there
+  // lights up the picker path and then fails on click. A top-level document is
+  // the part that actually decides, so require it; framed, the plain
+  // <input type="file"> fallback takes over, which does work.
+  const supportsFileSystemAccess =
+    typeof window !== 'undefined' &&
+    typeof (window as any).showSaveFilePicker === 'function' &&
+    (() => { try { return window.self === window.top; } catch { return false; } })();
   // Visible confirmation that each click actually did something — a silent
   // handle-overwrite (no dialog, unlike the first save) gave no feedback at
   // all, which read as "only the first save works" even when later saves
@@ -2751,13 +2978,8 @@ export default function App() {
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
 
   const downloadSessionBlob = (payload: any) => {
-    const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${(sampleId || 'sample').replace(/[^a-zA-Z0-9_-]+/g, '_')}_session.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const name = `${(sampleId || 'sample').replace(/[^a-zA-Z0-9_-]+/g, '_')}_session.json`;
+    saveText(JSON.stringify(payload), name, 'application/json');
   };
 
   // Chrome can silently drop a handle's write permission (tab backgrounded a
@@ -2880,6 +3102,12 @@ export default function App() {
         setError('세션 파일을 불러오지 못했습니다 — 형식이 올바르지 않습니다.');
       }
     };
+    // Without this a read that fails outright (an unreadable file, a session
+    // large enough to exhaust memory) leaves the screen unchanged and the click
+    // looking ignored.
+    reader.onerror = () => {
+      setError(`"${f.name}" 파일을 읽지 못했습니다.`);
+    };
     reader.readAsText(f);
   }, [applyLoadedSession]);
 
@@ -2887,17 +3115,28 @@ export default function App() {
   // Session calls overwrite this exact file instead of downloading a copy.
   const loadSessionViaPicker = useCallback(async () => {
     if (!supportsFileSystemAccess) return;
+    // Opening the file and understanding its contents fail for unrelated
+    // reasons, so they are reported separately — a blocked or cancelled picker
+    // has nothing to do with the file's format, and saying so sends the user
+    // looking for a problem in a session that is perfectly fine.
+    let handle: any;
+    let text: string;
     try {
-      const [handle] = await (window as any).showOpenFilePicker({
+      [handle] = await (window as any).showOpenFilePicker({
         types: [{ description: 'Session JSON', accept: { 'application/json': ['.json'] } }],
       });
       const file = await handle.getFile();
-      const text = await file.text();
+      text = await file.text();
+    } catch (err: any) {
+      if (err?.name === 'AbortError') return;
+      setError('파일 선택 창을 열지 못했습니다 — 브라우저가 이 환경에서 허용하지 않습니다.');
+      return;
+    }
+    try {
       applyLoadedSession(JSON.parse(text));
       sessionFileHandleRef.current = handle;
       setLinkedSessionFileName(handle.name);
-    } catch (err: any) {
-      if (err?.name === 'AbortError') return;
+    } catch {
       setError('세션 파일을 불러오지 못했습니다 — 형식이 올바르지 않습니다.');
     }
   }, [supportsFileSystemAccess, applyLoadedSession]);
@@ -2914,6 +3153,7 @@ export default function App() {
         const assemble: { x: number; fft: FFTResult[]; fileName: string; peaks?: FFTResult[] }[] = [];
         const rawPlot: { x: number; y: number; fileName: string; columnName: string }[] = [];
         const maxDerivPlot: { x: number; y: number; fileName: string; columnName: string }[] = [];
+        const devPlot: { x: number; y: number; fileName: string; columnName: string }[] = [];
         const rawSeries: { 
           fileName: string; 
           columnName: string; 
@@ -3121,13 +3361,97 @@ export default function App() {
                     });
                   }
 
-                  // 3. Find peak of smoothed derivatives
+                  // 3. Find peak of smoothed derivatives — but only report it
+                  // if it's an actual interior maximum. When |dR/dB| is still
+                  // rising (or falling) right at the edge of the range, the
+                  // "peak" is really just wherever the range happened to end,
+                  // not a real feature of the data (common for a resistance
+                  // that's still accelerating its decline at the field limit).
                   if (smoothedDerivs.length > 0) {
-                    let peak = smoothedDerivs[0];
+                    let peakIdx = 0;
                     for (let i = 1; i < smoothedDerivs.length; i++) {
-                      if (smoothedDerivs[i].deriv > peak.deriv) peak = smoothedDerivs[i];
+                      if (smoothedDerivs[i].deriv > smoothedDerivs[peakIdx].deriv) peakIdx = i;
                     }
-                    maxDerivPlot.push({ x: finalBlm, y: peak.b, fileName: file.name, columnName: col });
+                    const edgeGuard = Math.max(3, Math.floor(smoothedDerivs.length * 0.02));
+                    const pinned = peakIdx < edgeGuard || peakIdx > smoothedDerivs.length - 1 - edgeGuard;
+                    if (!pinned) {
+                      maxDerivPlot.push({ x: finalBlm, y: smoothedDerivs[peakIdx].b, fileName: file.name, columnName: col });
+                    }
+                  }
+                }
+              }
+
+              // Transition-field detection, batch mode. Three approaches:
+              // 'changepoint' scans [devFitMinB, devFitMaxB] for the single
+              // best two-line breakpoint (a slope change — the right tool for
+              // a curve that turns over and heads down); 'onset'/'peak' fit a
+              // background polynomial over that window and walk outward from
+              // it (in devDirection), flagging where the smoothed residual
+              // first departs the fit or where it peaks. All three avoid
+              // differentiating point-to-point, which is what makes them
+              // tolerant of noisy sweeps.
+              if (devMode === 'changepoint') {
+                const searchPts = sortedByB.filter(d => d.b >= devFitMinB && d.b <= devFitMaxB);
+                const cp = findChangepoint(searchPts);
+                if (cp && cp.improvement > 0.02) {
+                  // Report the onset (first sustained departure from the
+                  // pre-break baseline) rather than breakB itself — for a
+                  // gradual transition breakB sits nearer its middle, not
+                  // its start. Falls back to breakB if no clean onset shows.
+                  const baselinePts = searchPts.filter(p => p.b < cp.breakB);
+                  const baseline = (b: number) => cp.leftIntercept + cp.leftSlope * b;
+                  const onsetB = findBaselineOnset(searchPts, baseline, baselinePts, devThresholdSigma);
+                  devPlot.push({ x: finalBlm, y: onsetB ?? cp.breakB, fileName: file.name, columnName: col });
+                }
+              } else {
+                const fitPts = sortedByB.filter(d => d.b >= devFitMinB && d.b <= devFitMaxB);
+                const armPts = devDirection === 'increasing'
+                  ? sortedByB.filter(d => d.b > devFitMaxB)
+                  : [...sortedByB.filter(d => d.b < devFitMinB)].reverse();
+
+                if (fitPts.length > devPolyDegree + 2 && armPts.length > 5) {
+                  const coeffs = polyfit(fitPts.map(d => d.b), fitPts.map(d => d.val), devPolyDegree);
+                  const evalPoly = (b: number) => {
+                    let val = 0;
+                    for (let i = 0; i <= devPolyDegree; i++) val += coeffs[i] * Math.pow(b, i);
+                    return val;
+                  };
+
+                  const fitResiduals = fitPts.map(d => d.val - evalPoly(d.b));
+                  const fitMean = fitResiduals.reduce((a, b) => a + b, 0) / fitResiduals.length;
+                  const sigma = Math.sqrt(
+                    fitResiduals.reduce((a, r) => a + (r - fitMean) ** 2, 0) / fitResiduals.length
+                  );
+
+                  if (sigma > 0) {
+                    const armResiduals = armPts.map(d => Math.abs(d.val - evalPoly(d.b)));
+                    const smoothed = applySmoothingOpt(armResiduals, 7);
+                    const cutoff = devThresholdSigma * sigma;
+
+                    if (devMode === 'onset') {
+                      const consecutiveNeeded = 5;
+                      let streak = 0;
+                      let streakStartB: number | null = null;
+                      for (let i = 0; i < smoothed.length; i++) {
+                        if (smoothed[i] > cutoff) {
+                          if (streak === 0) streakStartB = armPts[i].b;
+                          streak++;
+                          if (streak >= consecutiveNeeded) {
+                            devPlot.push({ x: finalBlm, y: streakStartB as number, fileName: file.name, columnName: col });
+                            break;
+                          }
+                        } else {
+                          streak = 0;
+                          streakStartB = null;
+                        }
+                      }
+                    } else {
+                      let peakIdx = 0;
+                      for (let i = 1; i < smoothed.length; i++) if (smoothed[i] > smoothed[peakIdx]) peakIdx = i;
+                      if (smoothed[peakIdx] > cutoff) {
+                        devPlot.push({ x: finalBlm, y: armPts[peakIdx].b, fileName: file.name, columnName: col });
+                      }
+                    }
                   }
                 }
               }
@@ -3254,6 +3578,7 @@ export default function App() {
         setAssembleData(_.orderBy(assemble, ['x'], ['asc']));
         setRawPlotData(rawPlot);
         setMaxDerivPlotData(maxDerivPlot);
+        setDevPlotData(devPlot);
         setAllRawSeries(rawSeries);
         setFiles(updatedFiles);
         const uniqueBlms = Array.from(new Set(rawSeries.map(s => s.blm)));
@@ -3575,13 +3900,35 @@ export default function App() {
     return { ...found, series };
   }, [landauSeriesList, ifftResultKey]);
 
-  const ifftBand = useMemo(
+  // Peak chips and any manually typed band are specific to one file/column —
+  // carrying them over to a newly picked series would silently band-pass it
+  // at frequencies that belonged to the previous file.
+  useEffect(() => {
+    setIfftSelectedPeakFreqs([]);
+    setIfftBandLo(0);
+    setIfftBandHi(0);
+  }, [ifftSelected?.key]);
+
+  // Selected peak chips each get their own auto-width band; a manually typed
+  // Band lo/hi is unioned in alongside them (or used alone if no chips are on).
+  const ifftManualBand = useMemo(
     () => (ifftBandHi > ifftBandLo && ifftBandHi > 0 ? { lo: ifftBandLo, hi: ifftBandHi } : null),
     [ifftBandLo, ifftBandHi],
   );
+  const ifftPeakBands = useMemo(
+    () => ifftSelectedPeakFreqs.map(f => {
+      const halfWidth = Math.max(2, f * 0.08);
+      return { lo: Math.max(0, f - halfWidth), hi: f + halfWidth };
+    }),
+    [ifftSelectedPeakFreqs],
+  );
+  const ifftBands = useMemo(() => {
+    const bands = ifftManualBand ? [...ifftPeakBands, ifftManualBand] : ifftPeakBands;
+    return bands.length > 0 ? bands : null; // null ⇒ auto (dominant peak)
+  }, [ifftPeakBands, ifftManualBand]);
   const ifftFiltered = useMemo(
-    () => ifftSelected ? landauSpectrumAndFilter(ifftSelected.series, ifftBand, ifftEdge, true) : null,
-    [ifftSelected, ifftBand, ifftEdge],
+    () => ifftSelected ? landauSpectrumAndFilter(ifftSelected.series, ifftBands, ifftEdge, true) : null,
+    [ifftSelected, ifftBands, ifftEdge],
   );
 
   // Both decimated the same way so an honest visual comparison (same point
@@ -3714,133 +4061,102 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#E4E3E0] text-[#141414] font-sans p-4 md:p-8">
-      {/* Header */}
-      <header className="max-w-7xl mx-auto mb-4 border-b border-[#141414] pb-4 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-        <div className="flex flex-col md:flex-row items-start md:items-center gap-8">
-          <div>
-            <h1 className="text-4xl font-bold tracking-tighter uppercase italic font-serif">
+    <div className="min-h-screen bg-[#E4E3E0] text-[#141414] font-sans">
+      {/* App bar — brand, sample, session file and account. Sticky so Save and
+          Upload stay one click away while scrolling the long analysis tabs. */}
+      <header className="sticky top-0 z-40 bg-[#141414] text-[#E4E3E0] border-b-2 border-[#F27D26]">
+        <div className="max-w-[1600px] mx-auto px-4 md:px-8 py-2.5 flex items-center gap-x-4 gap-y-2 flex-wrap">
+          <div className="flex items-baseline gap-3 pr-4 border-r border-white/10">
+            <h1 className="text-xl font-bold tracking-tighter uppercase italic font-serif leading-none whitespace-nowrap">
               Quantum Analysis
             </h1>
-            <p className="text-sm opacity-60 mt-1 font-mono uppercase tracking-widest">
+            <span className="hidden lg:inline text-[9px] font-mono uppercase tracking-widest opacity-40 whitespace-nowrap">
               SdH Analysis Suite
-            </p>
+            </span>
           </div>
-          
-          <nav className="flex bg-[#141414] p-1 rounded-none">
-            <button 
+
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] font-mono uppercase opacity-40">Sample</span>
+            <span className="font-mono text-sm font-bold text-[#F27D26]">{sampleId}</span>
+            <button
+              title="다른 샘플로 전환 (저장 안 된 변경사항은 사라집니다)"
               onClick={() => {
-                setAppMode('sdh');
-                setActiveTab('dashboard');
+                if (window.confirm('다른 샘플로 전환하시겠습니까? 저장하지 않은 변경사항은 사라집니다.')) {
+                  setSampleId(null);
+                  setSampleIdDraft('');
+                  setOrientations([]);
+                  setActiveOrientationId('');
+                  setFiles([]);
+                  sessionFileHandleRef.current = null;
+                  setLinkedSessionFileName(null);
+                  setSaveStatus('idle');
+                  setLastSavedAt(null);
+                }
               }}
-              className={`px-6 py-2 font-mono text-xs uppercase tracking-widest transition-all ${
-                appMode === 'sdh' 
-                  ? 'bg-[#F27D26] text-[#141414] font-bold' 
-                  : 'text-[#E4E3E0] hover:bg-white/10'
-              }`}
+              className="opacity-40 hover:opacity-100 p-0.5"
             >
-              SdH Analysis
+              <X size={12} />
             </button>
-          </nav>
-        </div>
-        <div className="flex items-center gap-4">
-          {isAuthReady && (
-            <div className="flex items-center gap-3 border-l pl-4 border-[#141414]/20">
-              {user ? (
-                <div className="flex items-center gap-3">
-                  <div className="text-right hidden sm:block">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-[#141414]">{user.displayName}</p>
-                    <p className="text-[9px] font-mono opacity-50">{user.email}</p>
-                  </div>
-                  {user.photoURL && (
-                    <img src={user.photoURL} alt="" className="w-8 h-8 rounded-none border border-[#141414]" referrerPolicy="no-referrer" />
-                  )}
-                  <button
-                    onClick={handleLogout}
-                    className="p-2 text-[#141414] hover:text-red-600 transition-colors"
-                    title="Sign Out"
-                  >
-                    <LogOut className="w-5 h-5" />
-                  </button>
-                </div>
-              ) : (
+          </div>
+
+          <div className="ml-auto flex items-center gap-2 flex-wrap justify-end">
+            {linkedSessionFileName && (
+              <span className="hidden md:inline text-[9px] font-mono opacity-40 max-w-[160px] truncate" title={`저장/불러오기 시 이 파일에 덮어씁니다: ${linkedSessionFileName}`}>
+                🔗 {linkedSessionFileName}
+              </span>
+            )}
+            {saveStatus === 'saved' && lastSavedAt && (
+              <span className="text-[9px] font-mono text-[#4ADE80]">✓ Saved {lastSavedAt.toLocaleTimeString()}</span>
+            )}
+            {saveStatus === 'error' && (
+              <span className="text-[9px] font-mono text-red-400">✕ Save failed</span>
+            )}
+            <button onClick={saveSessionToFile} title={linkedSessionFileName ? `"${linkedSessionFileName}" 파일에 덮어씁니다` : '샘플 전체(raw+설정)를 로컬 JSON 파일로 저장'}
+              className="px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider border border-white/20 hover:bg-white/10 flex items-center gap-1.5 transition-colors">
+              <Save size={12} />{saveStatus === 'saving' ? 'Saving…' : 'Save'}
+            </button>
+            {supportsFileSystemAccess ? (
+              <button
+                onClick={() => { if (window.confirm('현재 작업을 덮어씁니다. 계속할까요?')) loadSessionViaPicker(); }}
+                title="세션 파일 불러오기 (현재 작업을 덮어씁니다) — 이후 Save는 이 파일에 바로 덮어씁니다"
+                className="px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider border border-white/20 hover:bg-white/10 flex items-center gap-1.5 transition-colors"
+              >
+                <FolderOpen size={12} />Load
+              </button>
+            ) : (
+              <label title="저장된 세션 파일 불러오기 (현재 작업을 덮어씁니다)"
+                className="cursor-pointer px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider border border-white/20 hover:bg-white/10 flex items-center gap-1.5 transition-colors">
+                <FolderOpen size={12} />Load
+                <input type="file" accept=".json" onChange={(e) => { if (window.confirm('현재 작업을 덮어씁니다. 계속할까요?')) loadSessionFromFile(e); else e.target.value = ''; }} className="hidden" />
+              </label>
+            )}
+            <label className="cursor-pointer bg-[#F27D26] text-[#141414] font-bold px-4 py-1.5 hover:bg-opacity-90 transition-all flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider">
+              <Upload size={12} />
+              {files.length > 0 ? 'Add Files' : 'Upload Data'}
+              <input type="file" accept=".csv,.dat,.txt" onChange={handleFileUploadIntoActiveBucket} className="hidden" multiple />
+            </label>
+            {isAuthReady && user && (
+              <div className="flex items-center gap-1 pl-3 ml-1 border-l border-white/10">
+                <span className="hidden sm:inline text-[10px] font-mono font-bold uppercase tracking-widest opacity-70">{user.displayName}</span>
                 <button
-                  onClick={handleLogin}
-                  className="flex items-center gap-2 px-4 py-2 bg-[#141414] text-[#E4E3E0] hover:bg-opacity-80 transition-all font-mono text-[10px] uppercase tracking-widest"
+                  onClick={handleLogout}
+                  className="p-1.5 opacity-60 hover:opacity-100 hover:text-red-400 transition-colors"
+                  title="Sign Out"
                 >
-                  <LogIn className="w-4 h-4" />
-                  Sign In
+                  <LogOut size={14} />
                 </button>
-              )}
-            </div>
-          )}
-          {activeTab !== 'dashboard' && currentFileResults && (
-            (() => {
-              const blmCol = currentFileResults.columns.find(c => 
-                c.toLowerCase().includes('blm') || 
-                c.toLowerCase().includes('position') || 
-                c.toLowerCase().includes('angle')
-              );
-              
-              let displayVal = '';
-              if (blmCol && currentFileResults.data.length > 0) {
-                displayVal = String(currentFileResults.data[0][blmCol]);
-              } else {
-                const blmEntry = Object.entries(currentFileResults.metadata).find(([k]) => 
-                  k.toLowerCase().includes('position') || 
-                  k.toLowerCase().includes('blm') || 
-                  k.toLowerCase().includes('angle')
-                );
-                displayVal = blmEntry ? String(blmEntry[1]) : '';
-              }
-              
-              if (!displayVal) return null;
-              
-              return (
-                <div className="bg-[#141414] text-[#E4E3E0] px-4 py-2 flex flex-col items-end border-l-4 border-[#F27D26]">
-                  <span className="text-[9px] font-mono uppercase opacity-50">BLM Position (Angle)</span>
-                  <span className="text-xl font-mono font-bold">
-                    {displayVal}{!displayVal.includes('°') && '°'}
-                  </span>
-                </div>
-              );
-            })()
-          )}
-          <label className="cursor-pointer bg-[#141414] text-[#E4E3E0] px-6 py-3 rounded-none hover:bg-opacity-90 transition-all flex items-center gap-2 font-mono text-sm uppercase tracking-wider">
-            <Upload size={16} />
-            {files.length > 0 ? 'Add Files' : 'Upload Data'}
-            <input type="file" accept=".csv,.dat,.txt" onChange={handleFileUploadIntoActiveBucket} className="hidden" multiple />
-          </label>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
-      {/* Sample / Orientation bar */}
-      <div className="max-w-7xl mx-auto mb-4 flex items-center gap-3 flex-wrap bg-[#141414] text-[#E4E3E0] px-4 py-2 border border-[#E4E3E0]/10">
-        <div className="flex items-center gap-2 pr-3 border-r border-white/10">
-          <span className="text-[9px] font-mono uppercase opacity-40">Sample</span>
-          <span className="font-mono text-sm font-bold text-[#F27D26]">{sampleId}</span>
-          <button
-            title="다른 샘플로 전환 (저장 안 된 변경사항은 사라집니다)"
-            onClick={() => {
-              if (window.confirm('다른 샘플로 전환하시겠습니까? 저장하지 않은 변경사항은 사라집니다.')) {
-                setSampleId(null);
-                setSampleIdDraft('');
-                setOrientations([]);
-                setActiveOrientationId('');
-                setFiles([]);
-                sessionFileHandleRef.current = null;
-                setLinkedSessionFileName(null);
-                setSaveStatus('idle');
-                setLastSavedAt(null);
-              }
-            }}
-            className="opacity-40 hover:opacity-100 p-0.5"
-          >
-            <X size={12} />
-          </button>
-        </div>
-
-        <div className="flex items-center gap-1 flex-wrap flex-1">
+      <div className="max-w-[1600px] mx-auto px-4 md:px-8 pt-5 pb-8">
+      {/* Context bar — which slice of the sample is being worked on: the
+          orientation, the file set inside it, and (for T-sweeps) the group. */}
+      <div className="mb-4 flex items-center gap-x-5 gap-y-2 flex-wrap bg-white/60 border border-[#141414]/10 px-4 py-2">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-[9px] font-mono uppercase opacity-40 mr-1">Orientation</span>
           {orientations.map(o => (
             <div key={o.id} className="group relative">
               {editingOrientationId === o.id ? (
@@ -3854,7 +4170,7 @@ export default function App() {
                     if (e.key === 'Enter') { const v = editOrientationLabelDraft.trim(); if (v) renameOrientation(o.id, v); setEditingOrientationId(null); }
                     if (e.key === 'Escape') setEditingOrientationId(null);
                   }}
-                  className="w-24 bg-[#0a0a0a] border border-[#F27D26] px-1.5 py-1 font-mono text-[10px] text-[#E4E3E0] focus:outline-none"
+                  className="w-24 bg-white border border-[#F27D26] px-1.5 py-1 font-mono text-[10px] text-[#141414] focus:outline-none"
                 />
               ) : (
                 <button
@@ -3863,8 +4179,8 @@ export default function App() {
                   title="더블클릭으로 이름 변경"
                   className={`px-2.5 py-1 font-mono text-[10px] uppercase border transition-colors ${
                     o.id === activeOrientationId
-                      ? 'border-[#F27D26] text-[#F27D26] bg-[#F27D26]/10'
-                      : 'border-white/15 opacity-60 hover:opacity-100'
+                      ? 'border-[#F27D26] text-[#141414] font-bold bg-[#F27D26]/15'
+                      : 'border-[#141414]/20 opacity-60 hover:opacity-100'
                   }`}
                 >
                   {o.label}
@@ -3894,7 +4210,7 @@ export default function App() {
                   if (e.key === 'Escape') { setOrientationLabelDraft(''); setShowAddOrientation(false); }
                 }}
                 placeholder="e.g. [001]"
-                className="w-24 bg-[#0a0a0a] border border-[#E4E3E0]/30 px-1.5 py-1 font-mono text-[10px] text-[#E4E3E0] focus:outline-none focus:border-[#F27D26]"
+                className="w-24 bg-white border border-[#141414]/30 px-1.5 py-1 font-mono text-[10px] text-[#141414] focus:outline-none focus:border-[#F27D26]"
               />
               <button
                 onClick={() => { addOrientation(orientationLabelDraft.trim()); setOrientationLabelDraft(''); setShowAddOrientation(false); }}
@@ -3907,23 +4223,23 @@ export default function App() {
             <button
               onClick={() => { setOrientationLabelDraft(`Orientation ${orientations.length + 1}`); setShowAddOrientation(true); }}
               title="새 Orientation 추가"
-              className="px-1.5 py-1 border border-dashed border-white/20 opacity-50 hover:opacity-100 hover:border-white/40"
+              className="px-1.5 py-1 border border-dashed border-[#141414]/25 opacity-50 hover:opacity-100 hover:border-[#141414]/50"
             >
               <Plus size={12} />
             </button>
           )}
         </div>
 
-        <div className="flex items-center gap-1 pl-3 border-l border-white/10" title="이 orientation 안의 두 파일 세트 — 각도 스윕 / 온도 스윕은 서로 다른 파일·설정을 가짐">
+        <div className="flex items-center gap-1 pl-5 border-l border-[#141414]/10" title="이 orientation 안의 두 파일 세트 — 각도 스윕 / 온도 스윕은 서로 다른 파일·설정을 가짐">
           <span className="text-[9px] font-mono uppercase opacity-40 mr-1">Files</span>
           {(['angle', 'temperature'] as const).map(m => (
             <button
               key={m}
               onClick={() => switchBucket(m)}
-              className={`px-2 py-1 font-mono text-[9px] uppercase border transition-colors ${
+              className={`px-2.5 py-1 font-mono text-[10px] uppercase border transition-colors ${
                 activeBucket === m
-                  ? 'border-[#F27D26] text-[#F27D26] bg-[#F27D26]/10'
-                  : 'border-white/15 opacity-50 hover:opacity-100'
+                  ? 'border-[#141414] bg-[#141414] text-[#E4E3E0]'
+                  : 'border-[#141414]/20 opacity-60 hover:opacity-100'
               }`}
             >
               {m === 'angle' ? 'Angle Sweep' : 'Temp Sweep'}
@@ -3931,134 +4247,101 @@ export default function App() {
           ))}
         </div>
 
-        <div className="flex items-center gap-2 pl-3 border-l border-white/10">
-          {linkedSessionFileName && (
-            <span className="text-[8px] font-mono opacity-40 max-w-[140px] truncate" title={`저장/불러오기 시 이 파일에 덮어씁니다: ${linkedSessionFileName}`}>
-              🔗 {linkedSessionFileName}
-            </span>
-          )}
-          <button onClick={saveSessionToFile} title={linkedSessionFileName ? `"${linkedSessionFileName}" 파일에 덮어씁니다` : '샘플 전체(raw+설정)를 로컬 JSON 파일로 저장'}
-            className="px-2 py-1 font-mono text-[9px] uppercase border border-white/15 hover:bg-white/5 flex items-center gap-1">
-            <Save size={11} />{saveStatus === 'saving' ? 'Saving…' : 'Save Session'}
-          </button>
-          {saveStatus === 'saved' && lastSavedAt && (
-            <span className="text-[8px] font-mono text-[#4ADE80]">✓ Saved {lastSavedAt.toLocaleTimeString()}</span>
-          )}
-          {saveStatus === 'error' && (
-            <span className="text-[8px] font-mono text-red-400">✕ Save failed</span>
-          )}
-          {supportsFileSystemAccess ? (
-            <button
-              onClick={() => { if (window.confirm('현재 작업을 덮어씁니다. 계속할까요?')) loadSessionViaPicker(); }}
-              title="세션 파일 불러오기 (현재 작업을 덮어씁니다) — 이후 Save는 이 파일에 바로 덮어씁니다"
-              className="px-2 py-1 font-mono text-[9px] uppercase border border-white/15 hover:bg-white/5 flex items-center gap-1"
-            >
-              <FolderOpen size={11} />Load Session
-            </button>
-          ) : (
-            <label title="저장된 세션 파일 불러오기 (현재 작업을 덮어씁니다)"
-              className="cursor-pointer px-2 py-1 font-mono text-[9px] uppercase border border-white/15 hover:bg-white/5 flex items-center gap-1">
-              <FolderOpen size={11} />Load Session
-              <input type="file" accept=".json" onChange={(e) => { if (window.confirm('현재 작업을 덮어씁니다. 계속할까요?')) loadSessionFromFile(e); else e.target.value = ''; }} className="hidden" />
-            </label>
-          )}
-        </div>
-      </div>
+        {/* Temperature-sweep groups: several fixed-angle T-sweeps can live side
+            by side inside the same orientation's temperature bucket. */}
+        {activeBucket === 'temperature' && (() => {
+          const currentOrientation = orientations.find(o => o.id === activeOrientationId);
+          const groups = currentOrientation?.temperature.groups ?? [];
+          return (
+            <div className="flex items-center gap-1.5 flex-wrap pl-5 border-l border-[#141414]/10">
+              <span className="text-[9px] font-mono uppercase opacity-40 mr-1">T-Sweep Set</span>
+              {groups.map(g => (
+                <div key={g.id} className="group relative">
+                  {editingTempGroupId === g.id ? (
+                    <input
+                      type="text"
+                      autoFocus
+                      value={editTempGroupLabelDraft}
+                      onChange={(e) => setEditTempGroupLabelDraft(e.target.value)}
+                      onBlur={() => { const v = editTempGroupLabelDraft.trim(); if (v) renameTemperatureGroup(g.id, v); setEditingTempGroupId(null); }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') { const v = editTempGroupLabelDraft.trim(); if (v) renameTemperatureGroup(g.id, v); setEditingTempGroupId(null); }
+                        if (e.key === 'Escape') setEditingTempGroupId(null);
+                      }}
+                      className="w-20 bg-white border border-[#F27D26] px-1.5 py-1 font-mono text-[10px] text-[#141414] focus:outline-none"
+                    />
+                  ) : (
+                    <button
+                      onDoubleClick={() => { setEditingTempGroupId(g.id); setEditTempGroupLabelDraft(g.label); }}
+                      onClick={() => switchTemperatureGroup(g.id)}
+                      title="더블클릭으로 이름 변경 (예: 각도)"
+                      className={`px-2.5 py-1 font-mono text-[10px] uppercase border transition-colors ${
+                        g.id === activeTempGroupId
+                          ? 'border-[#F27D26] text-[#141414] font-bold bg-[#F27D26]/15'
+                          : 'border-[#141414]/20 opacity-60 hover:opacity-100'
+                      }`}
+                    >
+                      {g.label}
+                    </button>
+                  )}
+                  {editingTempGroupId !== g.id && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); if (window.confirm(`"${g.label}" T-sweep set을 제거할까요?`)) removeTemperatureGroup(g.id); }}
+                      title="제거"
+                      className="absolute -top-1.5 -right-1.5 hidden group-hover:flex items-center justify-center w-3.5 h-3.5 bg-red-600 text-white rounded-full"
+                    >
+                      <X size={9} />
+                    </button>
+                  )}
+                </div>
+              ))}
 
-      {/* Temperature-sweep groups: several fixed-angle T-sweeps can live side
-          by side inside the same orientation's temperature bucket. */}
-      {activeBucket === 'temperature' && (() => {
-        const currentOrientation = orientations.find(o => o.id === activeOrientationId);
-        const groups = currentOrientation?.temperature.groups ?? [];
-        return (
-          <div className="max-w-7xl mx-auto mb-4 flex items-center gap-2 flex-wrap bg-white/50 border border-[#141414]/10 px-4 py-2">
-            <span className="text-[9px] font-mono uppercase opacity-40">T-Sweep Set (angle)</span>
-            {groups.map(g => (
-              <div key={g.id} className="group relative">
-                {editingTempGroupId === g.id ? (
+              {showAddTempGroup ? (
+                <div className="flex items-center gap-1">
                   <input
                     type="text"
                     autoFocus
-                    value={editTempGroupLabelDraft}
-                    onChange={(e) => setEditTempGroupLabelDraft(e.target.value)}
-                    onBlur={() => { const v = editTempGroupLabelDraft.trim(); if (v) renameTemperatureGroup(g.id, v); setEditingTempGroupId(null); }}
+                    value={tempGroupLabelDraft}
+                    onChange={(e) => setTempGroupLabelDraft(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') { const v = editTempGroupLabelDraft.trim(); if (v) renameTemperatureGroup(g.id, v); setEditingTempGroupId(null); }
-                      if (e.key === 'Escape') setEditingTempGroupId(null);
+                      if (e.key === 'Enter') { addTemperatureGroup(tempGroupLabelDraft.trim()); setTempGroupLabelDraft(''); setShowAddTempGroup(false); }
+                      if (e.key === 'Escape') { setTempGroupLabelDraft(''); setShowAddTempGroup(false); }
                     }}
-                    className="w-20 bg-white border border-[#F27D26] px-1.5 py-1 font-mono text-[10px] text-[#141414] focus:outline-none"
+                    placeholder="e.g. 15deg"
+                    className="w-20 bg-white border border-[#141414]/30 px-1.5 py-1 font-mono text-[10px] text-[#141414] focus:outline-none focus:border-[#F27D26]"
                   />
-                ) : (
                   <button
-                    onDoubleClick={() => { setEditingTempGroupId(g.id); setEditTempGroupLabelDraft(g.label); }}
-                    onClick={() => switchTemperatureGroup(g.id)}
-                    title="더블클릭으로 이름 변경 (예: 각도)"
-                    className={`px-2.5 py-1 font-mono text-[10px] uppercase border transition-colors ${
-                      g.id === activeTempGroupId
-                        ? 'border-[#F27D26] text-[#F27D26] bg-[#F27D26]/10'
-                        : 'border-[#141414]/20 opacity-60 hover:opacity-100'
-                    }`}
+                    onClick={() => { addTemperatureGroup(tempGroupLabelDraft.trim()); setTempGroupLabelDraft(''); setShowAddTempGroup(false); }}
+                    className="px-1.5 py-1 font-mono text-[9px] uppercase border border-[#F27D26] text-[#F27D26]"
                   >
-                    {g.label}
+                    <Check size={11} />
                   </button>
-                )}
-                {editingTempGroupId !== g.id && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); if (window.confirm(`"${g.label}" T-sweep set을 제거할까요?`)) removeTemperatureGroup(g.id); }}
-                    title="제거"
-                    className="absolute -top-1.5 -right-1.5 hidden group-hover:flex items-center justify-center w-3.5 h-3.5 bg-red-600 text-white rounded-full"
-                  >
-                    <X size={9} />
-                  </button>
-                )}
-              </div>
-            ))}
-
-            {showAddTempGroup ? (
-              <div className="flex items-center gap-1">
-                <input
-                  type="text"
-                  autoFocus
-                  value={tempGroupLabelDraft}
-                  onChange={(e) => setTempGroupLabelDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') { addTemperatureGroup(tempGroupLabelDraft.trim()); setTempGroupLabelDraft(''); setShowAddTempGroup(false); }
-                    if (e.key === 'Escape') { setTempGroupLabelDraft(''); setShowAddTempGroup(false); }
-                  }}
-                  placeholder="e.g. 15deg"
-                  className="w-20 bg-white border border-[#141414]/30 px-1.5 py-1 font-mono text-[10px] text-[#141414] focus:outline-none focus:border-[#F27D26]"
-                />
+                </div>
+              ) : (
                 <button
-                  onClick={() => { addTemperatureGroup(tempGroupLabelDraft.trim()); setTempGroupLabelDraft(''); setShowAddTempGroup(false); }}
-                  className="px-1.5 py-1 font-mono text-[9px] uppercase border border-[#F27D26] text-[#F27D26]"
+                  onClick={() => { setTempGroupLabelDraft(`Group ${groups.length + 1}`); setShowAddTempGroup(true); }}
+                  title="새 T-sweep set 추가 (다른 각도)"
+                  className="px-1.5 py-1 border border-dashed border-[#141414]/25 opacity-50 hover:opacity-100 hover:border-[#141414]/50"
                 >
-                  <Check size={11} />
+                  <Plus size={12} />
                 </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => { setTempGroupLabelDraft(`Group ${groups.length + 1}`); setShowAddTempGroup(true); }}
-                title="새 T-sweep set 추가 (다른 각도)"
-                className="px-1.5 py-1 border border-dashed border-[#141414]/20 opacity-50 hover:opacity-100 hover:border-[#141414]/40"
-              >
-                <Plus size={12} />
-              </button>
-            )}
-            {groups.length === 0 && (
-              <span className="text-[9px] font-mono opacity-30 italic">+ 를 눌러 첫 T-sweep set을 추가하세요 (각도별로 여러 개 가능)</span>
-            )}
-          </div>
-        );
-      })()}
+              )}
+              {groups.length === 0 && (
+                <span className="text-[9px] font-mono opacity-40 italic">+ 를 눌러 첫 T-sweep set을 추가하세요 (각도별로 여러 개 가능)</span>
+              )}
+            </div>
+          );
+        })()}
+      </div>
 
       {/* Tabs Navigation */}
       {files.length > 0 && (
-        <nav className="max-w-7xl mx-auto mb-8 flex items-center gap-0.5 overflow-x-auto no-scrollbar bg-white/50 border border-[#141414]/10 px-2">
+        <nav className="mb-6 flex items-center gap-0.5 overflow-x-auto no-scrollbar bg-white/60 border border-[#141414]/10 px-2">
           {(() => {
             const angleOnlyTabs = new Set(['torque', 'landau', 'harmonics', 'symmetry', 'branch']);
             const allTabs: [string, string][] = [
               ['dashboard', 'Dashboard'],
-              ['raw', 'Raw Data'], ['assemble', 'FFT Assemble'],
+              ['raw', 'Raw Data'], ['rawderiv', 'Raw Deriv'], ['assemble', 'FFT Assemble'],
               ['torque', 'Torque'], ['landau', 'Landau Fan'], ['harmonics', 'Harmonics'], ['symmetry', 'Symmetry'], ['branch', 'Branch'],
               ['lkfit', 'L-K Fit'], ['fftrange', 'FFT Range'], ['ifft', 'IFFT'],
             ];
@@ -4071,7 +4354,7 @@ export default function App() {
               {(id === 'raw' || id === 'torque') && <span className="w-px h-4 bg-[#141414]/15 mx-2 shrink-0" />}
               <button
                 onClick={() => setActiveTab(id)}
-                className={`px-4 py-3.5 font-mono text-xs uppercase tracking-wide whitespace-nowrap transition-colors border-b-2 -mb-px ${
+                className={`px-3.5 py-3 font-mono text-[11px] uppercase tracking-wide whitespace-nowrap transition-colors border-b-2 -mb-px ${
                   activeTab === id
                     ? 'border-[#F27D26] text-[#141414] font-bold'
                     : 'border-transparent text-[#141414]/50 hover:text-[#141414]'
@@ -4081,8 +4364,39 @@ export default function App() {
               </button>
             </React.Fragment>
           ))}
-          {/* Per-file detail collapsed into a right-aligned dropdown */}
-          <div className="ml-auto flex items-center gap-2 pl-4 shrink-0">
+          {/* Per-file detail collapsed into a right-aligned dropdown, with the
+              current file's BLM position beside it. */}
+          <div className="ml-auto flex items-center gap-3 pl-4 shrink-0">
+            {activeTab !== 'dashboard' && currentFileResults && (() => {
+              const blmCol = currentFileResults.columns.find(c =>
+                c.toLowerCase().includes('blm') ||
+                c.toLowerCase().includes('position') ||
+                c.toLowerCase().includes('angle')
+              );
+
+              let displayVal = '';
+              if (blmCol && currentFileResults.data.length > 0) {
+                displayVal = String(currentFileResults.data[0][blmCol]);
+              } else {
+                const blmEntry = Object.entries(currentFileResults.metadata).find(([k]) =>
+                  k.toLowerCase().includes('position') ||
+                  k.toLowerCase().includes('blm') ||
+                  k.toLowerCase().includes('angle')
+                );
+                displayVal = blmEntry ? String(blmEntry[1]) : '';
+              }
+
+              if (!displayVal) return null;
+
+              return (
+                <div className="flex items-baseline gap-1.5 pl-3 border-l-2 border-[#F27D26]" title="BLM Position (Angle)">
+                  <span className="text-[9px] font-mono uppercase opacity-40">BLM</span>
+                  <span className="text-sm font-mono font-bold">
+                    {displayVal}{!displayVal.includes('°') && '°'}
+                  </span>
+                </div>
+              );
+            })()}
             <span className="text-[9px] font-mono uppercase tracking-widest opacity-30">File</span>
             <select
               value={files.some(f => f.id === activeTab) ? activeTab : ''}
@@ -4102,7 +4416,7 @@ export default function App() {
         </nav>
       )}
 
-      <main className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <main className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Sidebar / Controls — only on processing & per-file views */}
         {showControlSidebar && (
         <aside className="lg:col-span-3 space-y-6">
@@ -4745,12 +5059,7 @@ export default function App() {
                             });
 
                             const csv = headers + "\n" + rows.join("\n");
-                            const blob = new Blob([csv], { type: 'text/csv' });
-                            const url = URL.createObjectURL(blob);
-                            const a = document.createElement('a');
-                            a.href = url;
-                            a.download = `fft_assemble_summary.csv`;
-                            a.click();
+                            saveText(csv, `fft_assemble_summary.csv`, 'text/csv');
                           }}
                           className="flex items-center gap-2 bg-[#E4E3E0] hover:bg-[#E4E3E0]/80 text-[#141414] px-4 py-2 font-mono text-[10px] uppercase tracking-widest transition-all"
                         >
@@ -5616,6 +5925,298 @@ export default function App() {
 
               </div>
             </div>
+          ) : activeTab === 'rawderiv' ? (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+
+              {/* ── Control Panel ── */}
+              <div className="bg-[#141414] text-[#E4E3E0] border border-[#E4E3E0]/10">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-[#E4E3E0]/10 flex-wrap gap-3">
+                  <div className="flex items-center gap-3">
+                    <Activity size={18} className="text-[#60A5FA]" />
+                    <h3 className="text-lg font-serif italic font-bold">Raw Deriv</h3>
+                    <span className="text-[9px] font-mono opacity-30 ml-2">Onset / peak / changepoint detection on raw R(B) — avoids differentiating noisy data</span>
+                  </div>
+                  <select
+                    value={devSeriesKey || (allRawSeries[0] ? `${allRawSeries[0].fileName}::${allRawSeries[0].columnName}` : '')}
+                    onChange={(e) => setDevSeriesKey(e.target.value)}
+                    className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[10px] px-3 py-1.5 focus:outline-none focus:border-[#60A5FA] cursor-pointer max-w-[320px]"
+                  >
+                    {allRawSeries.map(s => (
+                      <option key={`${s.fileName}::${s.columnName}`} value={`${s.fileName}::${s.columnName}`} className="bg-[#141414]">
+                        {s.fileName} — {s.columnName} ({s.blm}°)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* BLM filter row */}
+                <div className="flex items-start gap-4 px-6 py-3 border-b border-[#E4E3E0]/10">
+                  <div className="flex items-center gap-1.5 pt-0.5 flex-none">
+                    <span className="text-[9px] font-mono uppercase opacity-40 mr-1">BLM</span>
+                    <button onClick={() => setActiveBlms(new Set(uniqueBlms))} className="px-1.5 py-0.5 font-mono text-[8px] uppercase border border-[#E4E3E0]/20 hover:bg-white/10">All</button>
+                    <button onClick={() => setActiveBlms(new Set())} className="px-1.5 py-0.5 font-mono text-[8px] uppercase border border-[#E4E3E0]/20 hover:bg-white/10">None</button>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 max-h-16 overflow-y-auto">
+                    {uniqueBlms.map((blm, idx) => (
+                      <button
+                        key={blm}
+                        onClick={() => { const n = new Set(activeBlms); n.has(blm) ? n.delete(blm) : n.add(blm); setActiveBlms(n); }}
+                        className={`px-1.5 py-0.5 font-mono text-[8px] border transition-all ${activeBlms.has(blm) ? 'text-[#141414] border-transparent' : 'border-[#E4E3E0]/15 text-[#E4E3E0] opacity-35 hover:opacity-70'}`}
+                        style={{ backgroundColor: activeBlms.has(blm) ? `hsl(${(idx * 137) % 360}, 55%, 55%)` : undefined }}
+                      >
+                        {blm}°
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Mode selector */}
+                <div className="flex items-center gap-2 px-6 py-3 border-b border-[#E4E3E0]/10 flex-wrap">
+                  <span className="text-[8px] font-mono uppercase opacity-30 mr-1">Method</span>
+                  {([
+                    ['onset', 'Onset', 'Fit a background polynomial, walk outward, flag the first sustained departure'],
+                    ['peak', 'Peak', 'Fit a background polynomial, walk outward, flag where the departure peaks'],
+                    ['changepoint', 'Changepoint', 'Fit two independent lines and find the single field where the slope itself changes — best for a curve that turns over and heads back down'],
+                  ] as const).map(([id, label, title]) => (
+                    <button
+                      key={id}
+                      onClick={() => setDevMode(id)}
+                      title={title}
+                      className={`px-2.5 py-1 font-mono text-[9px] border transition-all ${devMode === id ? 'border-[#60A5FA]/60 text-[#60A5FA] bg-[#60A5FA]/10' : 'border-[#E4E3E0]/15 text-[#E4E3E0] opacity-60 hover:opacity-100'}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                  <button onClick={() => handleProcessAll()} className="flex items-center gap-1 px-2 py-1 font-mono text-[9px] border border-[#60A5FA]/40 text-[#60A5FA] hover:bg-[#60A5FA]/10 ml-3"><RefreshCw size={10} />Recalculate</button>
+                </div>
+
+                {/* Fit controls row */}
+                <div className="flex items-center gap-2 px-6 py-3 flex-wrap">
+                  <span className="text-[8px] font-mono uppercase opacity-30 mr-1">{devMode === 'changepoint' ? 'Search range' : 'Fit window'}</span>
+                  <input type="number" value={devFitMinB} onChange={(e) => setDevFitMinB(parseFloat(e.target.value) || 0)} className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[9px] w-12 px-1 py-1 text-center focus:outline-none focus:border-[#60A5FA]" />
+                  <span className="text-[9px] opacity-30">–</span>
+                  <input type="number" value={devFitMaxB} onChange={(e) => setDevFitMaxB(parseFloat(e.target.value) || 0)} className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[9px] w-12 px-1 py-1 text-center focus:outline-none focus:border-[#60A5FA]" />
+                  <span className="text-[9px] opacity-30">T</span>
+                  {devMode !== 'changepoint' && (
+                    <>
+                      <span className="text-[8px] font-mono uppercase opacity-30 ml-3">Degree</span>
+                      <input type="number" min={1} max={8} value={devPolyDegree} onChange={(e) => setDevPolyDegree(Math.max(1, Math.min(8, parseInt(e.target.value) || 1)))} className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[9px] w-10 px-1 py-1 text-center focus:outline-none focus:border-[#60A5FA]" />
+                      <span className="text-[8px] font-mono uppercase opacity-30 ml-3">Threshold ×σ</span>
+                      <input type="number" step="0.5" value={devThresholdSigma} onChange={(e) => setDevThresholdSigma(parseFloat(e.target.value) || 0)} className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[9px] w-12 px-1 py-1 text-center focus:outline-none focus:border-[#60A5FA]" />
+                      <button
+                        onClick={() => setDevDirection(d => d === 'increasing' ? 'decreasing' : 'increasing')}
+                        title="Which side of the fit window to search for deviation"
+                        className="px-2 py-1 font-mono text-[9px] border border-[#E4E3E0]/15 hover:bg-white/10 ml-3"
+                      >
+                        Search B {devDirection === 'increasing' ? '↑ increasing' : '↓ decreasing'}
+                      </button>
+                    </>
+                  )}
+                  {devMode === 'changepoint' && devDiagnostic?.valid && devDiagnostic.changepoint && (
+                    <span className="text-[9px] font-mono ml-3">
+                      <span className="text-[#4ADE80]">onset {devDiagnostic.onsetB != null ? devDiagnostic.onsetB.toFixed(3) : devDiagnostic.changepoint.breakB.toFixed(3)} T</span>
+                      <span className="text-[#E4E3E0] opacity-30"> · </span>
+                      <span className="text-[#60A5FA]">bend center {devDiagnostic.changepoint.breakB.toFixed(3)} T</span>
+                      <span className="text-[#E4E3E0] opacity-30"> · slope {devDiagnostic.changepoint.leftSlope.toExponential(2)} → {devDiagnostic.changepoint.rightSlope.toExponential(2)} · improvement {(devDiagnostic.changepoint.improvement * 100).toFixed(1)}%</span>
+                    </span>
+                  )}
+                </div>
+
+                {devMode === 'changepoint' && devDiagnostic?.valid && devDiagnostic.changepointCandidates && devDiagnostic.changepointCandidates.length > 1 && (
+                  <div className="px-6 py-2.5 border-t border-[#E4E3E0]/10">
+                    <span className="text-[8px] font-mono uppercase opacity-30 mr-2">Other candidate breaks in this range</span>
+                    {devDiagnostic.changepointCandidates
+                      .filter(c => Math.abs(c.breakB - (devDiagnostic.changepoint?.breakB ?? NaN)) > 1e-9)
+                      .map((c, i) => (
+                        <span key={i} className="text-[9px] font-mono text-[#E4E3E0] opacity-50 mr-3">
+                          {c.breakB.toFixed(2)} T ({(c.improvement * 100).toFixed(0)}%)
+                        </span>
+                      ))}
+                    <span className="text-[8px] font-mono opacity-25 text-[#E4E3E0]">— if one of these looks like the bend you mean, narrow the search range around it</span>
+                  </div>
+                )}
+
+                {/* Comparison method: plain smoothed-|dR/dB|-peak range (shared with the Peak Transition Field panel on Raw Data) */}
+                <div className="flex items-center gap-2 px-6 py-3 border-t border-[#E4E3E0]/10">
+                  <span className="text-[8px] font-mono uppercase opacity-30 mr-1">Compare vs dR/dB range</span>
+                  <input type="number" value={maxDerivMinB} onChange={(e) => setMaxDerivMinB(parseFloat(e.target.value) || 0)} className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[9px] w-12 px-1 py-1 text-center focus:outline-none focus:border-[#F27D26]" />
+                  <span className="text-[9px] opacity-30">–</span>
+                  <input type="number" value={maxDerivMaxB} onChange={(e) => setMaxDerivMaxB(parseFloat(e.target.value) || 0)} className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[9px] w-12 px-1 py-1 text-center focus:outline-none focus:border-[#F27D26]" />
+                  <span className="text-[9px] opacity-30">T</span>
+                  <span className="text-[8px] font-mono opacity-30 ml-2">— raw dR/dB, smoothed (window 7), peak taken as the transition field</span>
+                </div>
+              </div>
+
+              {/* ── 1. Single-series diagnostic: raw + fit, and residual ── */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="bg-[#141414] text-[#E4E3E0] p-6 border border-[#E4E3E0]/10">
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h4 className="text-[11px] font-mono uppercase tracking-widest opacity-50">{devMode === 'changepoint' ? 'Raw R(B) & Changepoint Fit' : 'Raw R(B) & Polynomial Fit'}</h4>
+                      <p className="text-[10px] font-mono mt-0.5 text-[#F27D26] truncate max-w-[280px]">
+                        {devDiagnostic ? `${devDiagnostic.fileName} · ${devDiagnostic.columnName} (${devDiagnostic.blm}°)` : '—'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="h-[320px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ComposedChart margin={{ bottom: 20, left: 10 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#333" />
+                        <XAxis dataKey="b" type="number" domain={['auto', 'auto']} tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }} label={{ value: 'B-Field (T)', position: 'insideBottom', offset: 10, fill: '#E4E3E0', fontSize: 9 }} />
+                        <YAxis tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }} label={{ value: devDiagnostic?.columnName ?? 'R', angle: -90, position: 'insideLeft', fill: '#E4E3E0', fontSize: 9 }} />
+                        <Tooltip contentStyle={{ backgroundColor: '#141414', border: '1px solid #333', fontSize: '9px', color: '#E4E3E0' }} />
+                        <Legend wrapperStyle={{ fontSize: '9px', fontFamily: 'monospace' }} />
+                        <ReferenceArea x1={devFitMinB} x2={devFitMaxB} fill="#4ADE80" fillOpacity={0.08} stroke="#4ADE80" strokeOpacity={0.25} />
+                        {devDiagnostic?.valid && devDiagnostic.detectedB != null && (
+                          <ReferenceLine
+                            x={devDiagnostic.detectedB}
+                            stroke={devMode === 'changepoint' ? '#4ADE80' : '#60A5FA'}
+                            strokeDasharray="4 4"
+                            label={{ value: `${devMode === 'changepoint' ? 'onset' : 'poly'} ${devDiagnostic.detectedB.toFixed(3)} T`, position: 'top', fill: devMode === 'changepoint' ? '#4ADE80' : '#60A5FA', fontSize: 9 }}
+                          />
+                        )}
+                        {devMode === 'changepoint' && devDiagnostic?.valid && devDiagnostic.changepoint && devDiagnostic.onsetB != null && Math.abs(devDiagnostic.changepoint.breakB - devDiagnostic.onsetB) > 1e-9 && (
+                          <ReferenceLine x={devDiagnostic.changepoint.breakB} stroke="#60A5FA" strokeDasharray="4 4" label={{ value: `bend center ${devDiagnostic.changepoint.breakB.toFixed(3)} T`, position: 'insideTopLeft', fill: '#60A5FA', fontSize: 9 }} />
+                        )}
+                        {devMode === 'changepoint' && devDiagnostic?.valid && devDiagnostic.changepointCandidates?.filter(c => Math.abs(c.breakB - (devDiagnostic.changepoint?.breakB ?? NaN)) > 1e-9).map((c, i) => (
+                          <ReferenceLine key={i} x={c.breakB} stroke="#60A5FA" strokeOpacity={0.35} strokeDasharray="2 3" label={{ value: `${c.breakB.toFixed(2)}T`, position: 'insideBottomLeft', fill: '#60A5FA', fillOpacity: 0.6, fontSize: 8 }} />
+                        ))}
+                        {devDiagnostic?.derivPeakB != null && (
+                          <ReferenceLine x={devDiagnostic.derivPeakB} stroke="#F27D26" strokeDasharray="4 4" strokeOpacity={devDiagnostic.derivPeakPinned ? 0.35 : 1} label={{ value: devDiagnostic.derivPeakPinned ? `dR/dB: no peak (edge)` : `dR/dB ${devDiagnostic.derivPeakB.toFixed(3)} T`, position: 'insideTopRight', fill: '#F27D26', fontSize: 9 }} />
+                        )}
+                        <Line data={devDiagnostic?.rawForChart ?? []} dataKey="val" name="Raw R(B)" stroke="#E4E3E0" strokeWidth={1} dot={false} isAnimationActive={false} />
+                        {devDiagnostic?.valid && (
+                          <Line data={devDiagnostic.fitCurve} dataKey="fit" name={devMode === 'changepoint' ? 'Piecewise linear fit' : `Poly fit (deg ${devPolyDegree})`} stroke="#F27D26" strokeWidth={2} strokeDasharray="6 3" dot={false} isAnimationActive={false} />
+                        )}
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+                  {devDiagnostic && !devDiagnostic.valid && (
+                    <p className="mt-2 text-[9px] font-mono text-[#F27D26]/60">
+                      {devMode === 'changepoint'
+                        ? 'Not enough points in the search range for this series — widen the range.'
+                        : 'Not enough points in the fit window or search arm for this series — widen the fit range, extend the sweep, or lower the degree.'}
+                    </p>
+                  )}
+                </div>
+
+                <div className="bg-[#141414] text-[#E4E3E0] p-6 border border-[#E4E3E0]/10">
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h4 className="text-[11px] font-mono uppercase tracking-widest opacity-50">Method Comparison: Residual vs Smoothed |dR/dB|</h4>
+                      <p className="text-[10px] font-mono mt-0.5">
+                        <span className="text-[#60A5FA]">
+                          {devDiagnostic?.valid && typeof devDiagnostic.sigma === 'number'
+                            ? `poly σ=${devDiagnostic.sigma.toExponential(2)}`
+                            : devDiagnostic?.valid && devDiagnostic.changepoint
+                              ? `changepoint improvement=${(devDiagnostic.changepoint.improvement * 100).toFixed(1)}%`
+                              : '—'}
+                        </span>
+                        <span className="text-[#E4E3E0] opacity-30"> · </span>
+                        <span className="text-[#F27D26]">dR/dB {maxDerivMinB}–{maxDerivMaxB} T</span>
+                        {devDiagnostic?.derivPeakPinned && (
+                          <span className="text-[#F27D26] opacity-70"> ⚠ peak sits at the range edge — |dR/dB| was still climbing there, so this isn't a real interior peak. Widen the dR/dB range.</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="h-[320px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ComposedChart margin={{ bottom: 20, left: 10, right: 10 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#333" />
+                        <XAxis dataKey="b" type="number" domain={['auto', 'auto']} tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }} label={{ value: 'B-Field (T)', position: 'insideBottom', offset: 10, fill: '#E4E3E0', fontSize: 9 }} />
+                        <YAxis yAxisId="left" tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#60A5FA' }} label={{ value: devMode === 'changepoint' ? 'Residual (piecewise)' : 'Residual (poly)', angle: -90, position: 'insideLeft', fill: '#60A5FA', fontSize: 9 }} />
+                        <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#F27D26' }} label={{ value: '|dR/dB| (smoothed)', angle: 90, position: 'insideRight', fill: '#F27D26', fontSize: 9 }} />
+                        <Tooltip contentStyle={{ backgroundColor: '#141414', border: '1px solid #333', fontSize: '9px', color: '#E4E3E0' }} />
+                        <Legend wrapperStyle={{ fontSize: '9px', fontFamily: 'monospace' }} />
+                        {devDiagnostic?.valid && typeof devDiagnostic.cutoff === 'number' && (
+                          <>
+                            <ReferenceLine yAxisId="left" y={devDiagnostic.cutoff} stroke="#60A5FA" strokeDasharray="3 3" strokeOpacity={0.4} />
+                            <ReferenceLine yAxisId="left" y={-devDiagnostic.cutoff} stroke="#60A5FA" strokeDasharray="3 3" strokeOpacity={0.4} />
+                          </>
+                        )}
+                        {devDiagnostic?.valid && devDiagnostic.detectedB != null && <ReferenceLine x={devDiagnostic.detectedB} stroke={devMode === 'changepoint' ? '#4ADE80' : '#60A5FA'} strokeDasharray="4 4" />}
+                        {devDiagnostic?.derivPeakB != null && <ReferenceLine x={devDiagnostic.derivPeakB} stroke="#F27D26" strokeDasharray="4 4" strokeOpacity={devDiagnostic.derivPeakPinned ? 0.35 : 1} />}
+                        {devDiagnostic?.valid && devMode !== 'changepoint' && (
+                          <Line yAxisId="left" data={devDiagnostic.residualChart} dataKey="residual" name="Residual (raw)" stroke="#60A5FA" strokeOpacity={0.25} strokeWidth={1} dot={false} isAnimationActive={false} />
+                        )}
+                        {devDiagnostic?.valid && (
+                          <Line yAxisId="left" data={devDiagnostic.residualChart} dataKey="smoothed" name={devMode === 'changepoint' ? 'Residual (piecewise)' : 'Residual (poly, smoothed)'} stroke="#60A5FA" strokeWidth={2} dot={false} isAnimationActive={false} />
+                        )}
+                        <Line yAxisId="right" data={devDiagnostic?.derivativeChart ?? []} dataKey="deriv" name="|dR/dB| (smoothed)" stroke="#F27D26" strokeWidth={2} dot={false} isAnimationActive={false} />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <p className="mt-2 text-[8px] font-mono opacity-30 text-[#E4E3E0] leading-relaxed">
+                    {devMode === 'changepoint'
+                      ? "Blue = residual against the two-line changepoint fit (flat near zero on each side, by construction — a real kink shows up as the field where the residual starts climbing away from zero). The green onset line is the first field where that climb becomes sustained; the blue bend-center line (where shown) is the two-line model's best-fit meeting point, usually a bit further along a gradual transition. Orange = plain derivative method — raw dR/dB, smoothed, peak taken as the transition field. Where a curve never turns over within the measured range, dR/dB has no real peak to find (it just pins to whichever edge you set) — the changepoint/onset read is the more reliable one in that case."
+                      : "Blue = polynomial-residual method (this series' search arm). Orange = plain derivative method — raw dR/dB, smoothed with the same window-7 moving average, peak taken as the transition field. Point-to-point noise shows up as jitter in the thin, unsmoothed blue trace; differentiating it first (orange) amplifies that jitter before smoothing ever gets a chance to average it out, which is why the orange curve is usually the noisier of the two."}
+                  </p>
+                </div>
+              </div>
+
+              {/* ── 2. Deviation field vs BLM, across every series — both methods overlaid ── */}
+              <div className="bg-[#141414] text-[#E4E3E0] p-6 border border-[#E4E3E0]/10">
+                <div className="flex justify-between items-center mb-4">
+                  <div>
+                    <h4 className="text-[11px] font-mono uppercase tracking-widest opacity-50">Transition Field vs BLM — Both Methods</h4>
+                    <p className="text-[10px] font-mono mt-0.5">
+                      <span className={devMode === 'changepoint' ? 'text-[#4ADE80]' : 'text-[#60A5FA]'}>◆ {devMode === 'onset' ? 'Polynomial onset' : devMode === 'peak' ? 'Polynomial peak' : 'Changepoint onset'}</span>
+                      <span className="text-[#E4E3E0] opacity-30"> vs </span>
+                      <span className="text-[#F27D26]">★ Smoothed dR/dB peak</span>
+                    </p>
+                  </div>
+                  <button onClick={() => { const filtered = devComparisonRows.filter(d => activeBlms.has(d.blm)); downloadCSV("BLM(°),PrimaryField(T),DerivField(T),FileName,Column\n" + filtered.map(d => `${d.blm},${d.polyB ?? ''},${d.derivB ?? ''},${d.fileName},${d.columnName}`).join('\n'), `transition_field_comparison_vs_blm.csv`); }} className="px-2.5 py-1 font-mono text-[8px] uppercase border border-[#E4E3E0]/15 hover:bg-white/5 flex items-center gap-1"><Download size={9} />CSV</button>
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <div className="lg:col-span-2 h-[320px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ScatterChart>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#222" />
+                        <XAxis dataKey="x" type="number" name="BLM" tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }} label={{ value: 'BLM (°)', position: 'insideBottom', offset: 10, fill: '#E4E3E0', fontSize: 9 }} />
+                        <YAxis dataKey="y" name="B deviation" tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }} label={{ value: 'B (T)', angle: -90, position: 'insideLeft', fill: '#E4E3E0', fontSize: 9 }} />
+                        <Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ backgroundColor: '#141414', border: '1px solid #333', fontSize: '9px', color: '#E4E3E0' }} />
+                        <Legend wrapperStyle={{ fontSize: '9px', fontFamily: 'monospace' }} />
+                        <Scatter name={devMode === 'onset' ? 'Polynomial onset' : devMode === 'peak' ? 'Polynomial peak' : 'Changepoint onset'} data={devPlotData.filter(d => activeBlms.has(d.x))} fill={devMode === 'changepoint' ? '#4ADE80' : '#60A5FA'} shape="diamond" isAnimationActive={false} />
+                        <Scatter name="Smoothed dR/dB peak" data={maxDerivPlotData.filter(d => activeBlms.has(d.x))} fill="#F27D26" shape="star" isAnimationActive={false} />
+                      </ScatterChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="border border-[#E4E3E0]/10 p-3 overflow-hidden flex flex-col h-[320px]">
+                    <h4 className="text-[9px] font-mono uppercase opacity-40 mb-2 text-[#E4E3E0]">Data</h4>
+                    <div className="flex-1 overflow-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead className="sticky top-0 bg-[#141414] z-10">
+                          <tr className="border-b border-[#E4E3E0]/20">
+                            <th className="p-1 text-[9px] font-mono uppercase opacity-60 text-[#E4E3E0]">BLM</th>
+                            <th className={`p-1 text-[9px] font-mono uppercase opacity-60 ${devMode === 'changepoint' ? 'text-[#4ADE80]' : 'text-[#60A5FA]'}`}>{devMode === 'changepoint' ? 'Onset (T)' : 'Poly (T)'}</th>
+                            <th className="p-1 text-[9px] font-mono uppercase opacity-60 text-[#F27D26]">dR/dB (T)</th>
+                            <th className="p-1 text-[9px] font-mono uppercase opacity-60 text-[#E4E3E0]">Column</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {devComparisonRows.filter(d => activeBlms.has(d.blm)).map((d, idx) => (
+                            <tr key={idx} className="border-b border-[#E4E3E0]/5 hover:bg-white/5">
+                              <td className="p-1 text-[9px] font-mono text-[#E4E3E0]">{d.blm}°</td>
+                              <td className={`p-1 text-[9px] font-mono ${devMode === 'changepoint' ? 'text-[#4ADE80]' : 'text-[#60A5FA]'}`}>{d.polyB != null ? d.polyB.toFixed(4) : '—'}</td>
+                              <td className="p-1 text-[9px] font-mono text-[#F27D26]">{d.derivB != null ? d.derivB.toFixed(4) : '—'}</td>
+                              <td className="p-1 text-[9px] font-mono text-[#E4E3E0] opacity-60 truncate max-w-[70px]">{d.columnName}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+                <p className="mt-3 text-[8px] font-mono opacity-30 text-[#E4E3E0] leading-relaxed">
+                  {devMode === 'changepoint'
+                    ? <>Changepoint onset: scans {devFitMinB}–{devFitMaxB} T for the single breakpoint that minimizes total squared error when split into two independently-fit lines (kept only when it reduces error by more than 2% over one straight line). The pre-break line is then extrapolated forward, and the reported field is the first point where the data sustains a departure from it by more than {devThresholdSigma}σ for 5 consecutive points — i.e. where the bend actually starts, not the two-line model's best-fit meeting point. </>
+                    : <>Polynomial method: fits a degree-{devPolyDegree} polynomial to R(B) over {devFitMinB}–{devFitMaxB} T, walks B {devDirection === 'increasing' ? 'upward from the top of that window' : 'downward from the bottom of that window'}, and {devMode === 'onset' ? `flags the first field where the smoothed residual (window 7) stays above ${devThresholdSigma}σ for 5 consecutive points` : `flags the field where the smoothed residual peaks above ${devThresholdSigma}σ`}. </>}
+                  Derivative method: raw dR/dB over {maxDerivMinB}–{maxDerivMaxB} T, smoothed (window 7), peak taken as the transition field — the same computation as the Peak Transition Field panel on Raw Data. If a series' resistance is still accelerating its change at the edge of that range, there's no real interior peak — the number pins to the edge and isn't meaningful (flagged separately above). Where the two methods disagree by more than a point or two otherwise, suspect the derivative method is chasing noise.
+                </p>
+              </div>
+
+            </div>
           ) : activeTab === 'torque' ? (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
@@ -6369,12 +6970,7 @@ export default function App() {
                               csv += `${branch.name},${p.blm},${p.freq},${p.amp},${mirroredBlm.toFixed(2)},${p.freq},${p.amp}\n`;
                             });
                           });
-                          const blob = new Blob([csv], { type: 'text/csv' });
-                          const url = URL.createObjectURL(blob);
-                          const a = document.createElement('a');
-                          a.href = url;
-                          a.download = `symmetry_analysis_center_${symmetryCenter}.csv`;
-                          a.click();
+                          saveText(csv, `symmetry_analysis_center_${symmetryCenter}.csv`, 'text/csv');
                         }}
                         className="ml-4 bg-[#F27D26] text-white px-3 py-1 font-mono text-[10px] uppercase tracking-widest hover:bg-[#F27D26]/80 flex items-center gap-2"
                       >
@@ -6546,12 +7142,7 @@ export default function App() {
                           csv += "\n";
                         });
 
-                        const blob = new Blob([csv], { type: 'text/csv' });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `branch_analysis_wide.csv`;
-                        a.click();
+                        saveText(csv, `branch_analysis_wide.csv`, 'text/csv');
                       }}
                       className="bg-white/10 text-white px-4 py-2 font-mono text-[10px] uppercase tracking-widest hover:bg-white/20 border border-white/10"
                     >
@@ -6569,12 +7160,7 @@ export default function App() {
                         others.forEach(p => {
                           csv += `Others,${p.blm},${p.freq},${p.amp},${p.fileName},,\n`;
                         });
-                        const blob = new Blob([csv], { type: 'text/csv' });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `branch_analysis_combined.csv`;
-                        a.click();
+                        saveText(csv, `branch_analysis_combined.csv`, 'text/csv');
                       }}
                       className="bg-[#F27D26] text-white px-4 py-2 font-mono text-[10px] uppercase tracking-widest hover:bg-opacity-80"
                     >
@@ -7280,12 +7866,7 @@ export default function App() {
                             });
 
                             const csv = headers + "\n" + rows.join("\n");
-                            const blob = new Blob([csv], { type: 'text/csv' });
-                            const url = URL.createObjectURL(blob);
-                            const a = document.createElement('a');
-                            a.href = url;
-                            a.download = `fft_assemble_simplified.csv`;
-                            a.click();
+                            saveText(csv, `fft_assemble_simplified.csv`, 'text/csv');
                           }}
                           className="bg-[#F27D26] text-white px-4 py-2 font-mono text-[10px] uppercase tracking-widest hover:bg-opacity-80"
                         >
@@ -7710,15 +8291,17 @@ export default function App() {
                   <div className="flex items-center gap-2 flex-wrap px-6 py-3 border-b border-[#E4E3E0]/10">
                     <span className="text-[9px] font-mono uppercase opacity-40 mr-1">Detected peaks:</span>
                     {ifftSelected.result.detectedPeaks.slice(0, 8).map((p, i) => {
-                      const isSelected = !!ifftBand && p.frequency >= ifftBand.lo && p.frequency <= ifftBand.hi;
+                      const isSelected = ifftSelectedPeakFreqs.includes(p.frequency)
+                        || (!!ifftManualBand && p.frequency >= ifftManualBand.lo && p.frequency <= ifftManualBand.hi);
                       return (
                         <button
                           key={i}
                           onClick={() => {
-                            const halfWidth = Math.max(2, p.frequency * 0.08);
-                            setIfftBandLo(Math.max(0, p.frequency - halfWidth));
-                            setIfftBandHi(p.frequency + halfWidth);
+                            setIfftSelectedPeakFreqs(prev =>
+                              prev.includes(p.frequency) ? prev.filter(f => f !== p.frequency) : [...prev, p.frequency]
+                            );
                           }}
+                          title="Click to add/remove — select two or more to combine and overlay their sum"
                           className={`px-2.5 py-1 font-mono text-[10px] border transition-colors ${
                             isSelected ? 'bg-[#F27D26]/20 border-[#F27D26] text-[#F27D26]' : 'bg-white/5 border-white/10 hover:bg-white/10'
                           }`}
@@ -7727,6 +8310,14 @@ export default function App() {
                         </button>
                       );
                     })}
+                    {ifftSelectedPeakFreqs.length > 0 && (
+                      <button
+                        onClick={() => setIfftSelectedPeakFreqs([])}
+                        className="px-2 py-1 font-mono text-[9px] uppercase border border-white/10 opacity-50 hover:opacity-90 transition-opacity"
+                      >
+                        Clear ({ifftSelectedPeakFreqs.length})
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -7743,8 +8334,8 @@ export default function App() {
                       onChange={e => setIfftBandHi(Math.max(0, parseFloat(e.target.value) || 0))}
                       className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[9px] w-16 px-1.5 py-0.5 text-center focus:outline-none focus:border-[#F27D26]" />
                     <span className="text-[8px] font-mono opacity-30">T</span>
-                    <button onClick={() => { setIfftBandLo(0); setIfftBandHi(0); }}
-                      className={`px-1.5 py-0.5 font-mono text-[8px] uppercase border transition-all ${ifftBand === null ? 'border-[#F27D26] text-[#F27D26] bg-[#F27D26]/10' : 'border-[#E4E3E0]/15 opacity-40 hover:opacity-70'}`}
+                    <button onClick={() => { setIfftBandLo(0); setIfftBandHi(0); setIfftSelectedPeakFreqs([]); }}
+                      className={`px-1.5 py-0.5 font-mono text-[8px] uppercase border transition-all ${ifftBands === null ? 'border-[#F27D26] text-[#F27D26] bg-[#F27D26]/10' : 'border-[#E4E3E0]/15 opacity-40 hover:opacity-70'}`}
                       title="Auto: center the band on the dominant peak">Auto</button>
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -7762,6 +8353,7 @@ export default function App() {
                 </div>
               ) : (() => {
                 const band = ifftFiltered?.band;
+                const bands = ifftFiltered?.bands ?? [];
                 const specMax = ifftFiltered ? Math.max((band?.hi ?? 0) * 1.6, ifftFiltered.peakF * 3.5, 100) : 0;
                 const specView = ifftFiltered ? ifftFiltered.spectrum.filter(p => p.frequency <= specMax) : [];
                 return (
@@ -7771,7 +8363,12 @@ export default function App() {
                         <div className="flex justify-between items-start mb-3">
                           <div>
                             <h4 className="text-[11px] font-mono uppercase tracking-widest opacity-50">FFT Spectrum — pick the band to test</h4>
-                            <p className="text-[10px] font-mono mt-0.5 text-[#F27D26]">band {band!.lo.toFixed(1)}–{band!.hi.toFixed(1)} T <span className="opacity-40 text-[#E4E3E0]">{ifftBand === null ? '(auto: dominant peak)' : '(manual)'}</span></p>
+                            <p className="text-[10px] font-mono mt-0.5 text-[#F27D26]">
+                              {bands.map(b => `${b.lo.toFixed(1)}–${b.hi.toFixed(1)}`).join(' T, ')} T
+                              <span className="opacity-40 text-[#E4E3E0]">
+                                {' '}{bands.length > 1 ? `(${bands.length} peaks combined)` : ifftBands === null ? '(auto: dominant peak)' : '(manual)'}
+                              </span>
+                            </p>
                           </div>
                         </div>
                         <div className="h-[180px] w-full">
@@ -7787,7 +8384,9 @@ export default function App() {
                               <Tooltip contentStyle={{ backgroundColor: '#141414', border: '1px solid #333', fontSize: '9px', color: '#E4E3E0' }}
                                 formatter={(v: any) => [typeof v === 'number' ? v.toExponential(3) : v, 'Amp']}
                                 labelFormatter={(v: number) => `F = ${Number(v).toFixed(1)} T`} />
-                              {band && band.hi > band.lo && <ReferenceArea x1={band.lo} x2={band.hi} fill="#F27D26" fillOpacity={0.15} stroke="#F27D26" strokeOpacity={0.4} />}
+                              {bands.map((b, i) => b.hi > b.lo && (
+                                <ReferenceArea key={i} x1={b.lo} x2={b.hi} fill="#F27D26" fillOpacity={0.15} stroke="#F27D26" strokeOpacity={0.4} />
+                              ))}
                               <Area type="linear" dataKey="amplitude" stroke="#4ADE80" fill="#4ADE80" fillOpacity={0.15} strokeWidth={1} dot={false} isAnimationActive={false} />
                             </ComposedChart>
                           </ResponsiveContainer>
@@ -7798,9 +8397,12 @@ export default function App() {
                     <div className="bg-[#141414] text-[#E4E3E0] p-6 border border-[#E4E3E0]/10">
                       <div className="flex justify-between items-start mb-3 flex-wrap gap-2">
                         <div>
-                          <h4 className="text-[11px] font-mono uppercase tracking-widest opacity-50">Raw ΔR vs Reconstructed Single Component</h4>
+                          <h4 className="text-[11px] font-mono uppercase tracking-widest opacity-50">
+                            Raw ΔR vs Reconstructed {bands.length > 1 ? `Combined (${bands.length}) Components` : 'Single Component'}
+                          </h4>
                           <p className="text-[10px] font-mono mt-0.5 opacity-60">
                             {ifftSelected?.blm}° · {ifftSelected?.col} — 재구성된 성분(주황)이 실제 데이터(회색)의 굴곡과 맞아떨어지면 진짜 신호, 그렇지 않으면 노이즈일 가능성이 높습니다.
+                            {bands.length > 1 ? ' 여러 주파수를 합쳐서 재구성했습니다.' : ''}
                           </p>
                         </div>
                         <div className="flex items-center gap-3 text-[9px] font-mono shrink-0">
@@ -8137,24 +8739,19 @@ export default function App() {
       </main>
 
       {/* Footer Info */}
-      <footer className="max-w-7xl mx-auto mt-12 pt-8 border-t border-[#141414]/10 flex flex-col md:flex-row justify-between gap-8 pb-12">
-        <div className="max-w-md">
-          <div className="flex items-center gap-2 mb-2">
-            <Info size={16} />
-            <h4 className="font-serif italic font-bold">About SdH Analysis</h4>
-          </div>
-          <p className="text-xs leading-relaxed opacity-60">
-            Shubnikov-de Haas (SdH) oscillations are periodic variations in the magnetoresistance of a material at low temperatures and high magnetic fields. 
-            This tool performs a standard processing pipeline: background subtraction using polynomial fitting, 
-            conversion to inverse magnetic field (1/B), linear interpolation for uniform sampling, and Fast Fourier Transform (FFT) to extract the oscillation frequencies.
+      <footer className="mt-12 pt-6 border-t border-[#141414]/10 flex flex-col md:flex-row justify-between gap-6">
+        <div className="max-w-2xl flex gap-2">
+          <Info size={14} className="shrink-0 mt-0.5 opacity-50" />
+          <p className="text-[11px] leading-relaxed opacity-50">
+            Shubnikov-de Haas (SdH) oscillations are periodic variations in the magnetoresistance of a material at low temperatures and high magnetic fields.
+            Pipeline: polynomial background subtraction → 1/B conversion → uniform interpolation → FFT.
           </p>
         </div>
-        <div className="text-right">
-          <p className="text-[10px] font-mono uppercase tracking-widest opacity-40">
-            Built for Scientific Data Processing
-          </p>
-        </div>
+        <p className="text-[9px] font-mono uppercase tracking-widest opacity-40 md:text-right whitespace-nowrap">
+          All processing runs locally in your browser
+        </p>
       </footer>
+      </div>
     </div>
   );
 }

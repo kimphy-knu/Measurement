@@ -184,6 +184,42 @@ export function angleFromFileName(name: string): number | null {
   return v != null && isFinite(v) && Math.abs(v) <= 360 ? v : null;
 }
 
+// Temperature tagged in the file name. A T-sweep dataset is usually named
+// after its setpoint. An explicit "...4.2K..." suffix wins first (most
+// unambiguous); "T4.2_..." prefixes are tried next; otherwise the *last*
+// plausible number in the name is used, since these files are commonly
+// named "<date>_<value>.ext" ("20260824_1.006.txt") with the swept value
+// trailing the date rather than leading it — unlike angleFromFileName's
+// first-number fallback, which fits angle-first naming instead.
+// A number immediately tagged "deg"/"°" is always skipped here — that is
+// the angle, not the temperature, and a file named "30deg.csv" with
+// nothing else numeric must fall through to the caller's own fallback
+// rather than reporting 30 K.
+export function temperatureFromFileName(name: string): number | null {
+  const dot = name.lastIndexOf('.');
+  const base = dot === -1 ? name : name.substring(0, dot);
+  const kTagged = base.match(/(\d+(?:\.\d+)?)\s*[kK](?![a-zA-Z0-9])/);
+  if (kTagged) {
+    const v = parseFloat(kTagged[1]);
+    if (isFinite(v) && v > 0) return v;
+  }
+  const tTagged = base.match(/(?:^|[_\s-])[tT](\d+(?:\.\d+)?)(?:[_\s-]|$)/);
+  if (tTagged) {
+    const v = parseFloat(tTagged[1]);
+    if (isFinite(v) && v > 0) return v;
+  }
+  const matches = [...base.matchAll(/\d+(?:\.\d+)?/g)];
+  for (let i = matches.length - 1; i >= 0; i--) {
+    const raw = matches[i][0];
+    if (raw.length >= 6) continue; // an 8-digit blob reads as a date stamp, not a temperature
+    const idx = matches[i].index! + raw.length;
+    if (/^\s*(?:deg|°)/i.test(base.slice(idx))) continue; // this number is an angle tag
+    const v = parseFloat(raw);
+    if (isFinite(v) && v > 0 && v <= 400) return v;
+  }
+  return null;
+}
+
 // The field column, by name. Same rule everywhere so the loader, the analysis
 // and the exports can never disagree about which column is B.
 export function guessFieldColumn(keys: string[]): string {
@@ -379,9 +415,14 @@ export function computeLandauFan(
 // chosen frequency band (smooth raised-cosine edges to limit ringing), inverse-
 // transform to recover that single component, and index its extrema. Returns
 // the spectrum (for the band picker) and the reconstructed 1/B-domain signal.
+//
+// `band` also accepts an array of bands — e.g. two clicked FFT peaks — in
+// which case every band's raised-cosine window is kept (unioned, via max, so
+// overlapping windows don't double up) and a single IFFT reconstructs their
+// sum, letting two-or-more frequency components be verified together.
 export function landauSpectrumAndFilter(
   series: { invB: number; b: number; val: number }[],
-  band: { lo: number; hi: number } | null,
+  band: { lo: number; hi: number } | { lo: number; hi: number }[] | null,
   edgeFrac: number,
   applyFilter: boolean,
 ): LandauFilterResult | null {
@@ -412,21 +453,27 @@ export function landauSpectrumAndFilter(
     if (k > 1 && amp > peakA) { peakA = amp; peakF = k * df; }
   }
 
-  let lo: number, hi: number;
-  if (band && band.hi > band.lo && band.lo >= 0) { lo = band.lo; hi = band.hi; }
-  else { lo = peakF * 0.7; hi = peakF * 1.3; }
+  const bandsIn = band == null ? [] : Array.isArray(band) ? band : [band];
+  const validBands = bandsIn.filter(b => b.hi > b.lo && b.lo >= 0);
+  const bands = validBands.length > 0 ? validBands : [{ lo: peakF * 0.7, hi: peakF * 1.3 }];
+  const lo = Math.min(...bands.map(b => b.lo));
+  const hi = Math.max(...bands.map(b => b.hi));
 
   let recon: { invB: number; b: number; val: number }[];
   let filtered = false;
   if (applyFilter && hi > lo && peakF > 0) {
-    const w = Math.max(df, (hi - lo) * edgeFrac);
+    const windows = bands.map(b => ({ lo: b.lo, hi: b.hi, w: Math.max(df, (b.hi - b.lo) * edgeFrac) }));
     for (let k = 0; k <= half; k++) {
       const f = k * df;
-      let m: number;
-      if (f <= lo - w || f >= hi + w) m = 0;
-      else if (f >= lo && f <= hi) m = 1;
-      else if (f < lo) m = 0.5 * (1 + Math.cos(Math.PI * (lo - f) / w));
-      else m = 0.5 * (1 + Math.cos(Math.PI * (f - hi) / w));
+      let m = 0;
+      for (const b of windows) {
+        let mb: number;
+        if (f <= b.lo - b.w || f >= b.hi + b.w) mb = 0;
+        else if (f >= b.lo && f <= b.hi) mb = 1;
+        else if (f < b.lo) mb = 0.5 * (1 + Math.cos(Math.PI * (b.lo - f) / b.w));
+        else mb = 0.5 * (1 + Math.cos(Math.PI * (f - b.hi) / b.w));
+        if (mb > m) m = mb;
+      }
       out[2 * k] *= m; out[2 * k + 1] *= m;
       if (k > 0 && k < half) { const kk = N - k; out[2 * kk] *= m; out[2 * kk + 1] *= m; }
     }
@@ -441,5 +488,5 @@ export function landauSpectrumAndFilter(
   } else {
     recon = series;
   }
-  return { spectrum, recon, band: { lo, hi }, peakF, filtered };
+  return { spectrum, recon, band: { lo, hi }, bands, peakF, filtered };
 }

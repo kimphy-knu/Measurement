@@ -112,7 +112,8 @@ export type FanResult = {
 export type LandauFilterResult = {
   spectrum: { frequency: number; amplitude: number }[];
   recon: { invB: number; b: number; val: number }[];
-  band: { lo: number; hi: number };
+  band: { lo: number; hi: number };       // bounding envelope of all bands, for single-band callers
+  bands: { lo: number; hi: number }[];    // the individual band(s) actually kept — 2+ when combining frequencies
   peakF: number;
   filtered: boolean;
 };
