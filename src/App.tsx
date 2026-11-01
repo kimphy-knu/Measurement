@@ -66,7 +66,32 @@ import {
   computeLandauFan, landauSpectrumAndFilter,
 } from './lib/landau';
 import { MiniFFT } from './components/MiniFFT';
+import { FFTHeatmap } from './components/FFTHeatmap';
+import { AngleStep } from './components/workflow/AngleStep';
+import { PeakPickStep } from './components/workflow/PeakPickStep';
+import { VerifyStep } from './components/workflow/VerifyStep';
+import { EvolutionStep } from './components/workflow/EvolutionStep';
+import { SummaryStep } from './components/workflow/SummaryStep';
+import type { PickedPeak, Series as WfSeries } from './components/workflow/shared';
+
+// The guided analysis order. Each step is its own tab id; the original tools
+// stay available underneath as "개별 도구".
+const WORKFLOW_STEPS = [
+  { id: 'wf1', n: 1, label: '각도 (토크)' },
+  { id: 'wf2', n: 2, label: 'FFT · 봉우리' },
+  { id: 'wf3', n: 3, label: 'IFFT 검증' },
+  { id: 'wf4', n: 4, label: '각도 의존성' },
+  { id: 'wf5', n: 5, label: '정리' },
+] as const;
 import { saveText } from './lib/download';
+import { checkPeak, toUniform, VERDICT_LABEL, type PeakCheck, type Verdict } from './lib/verify';
+
+const VERDICT_STYLE: Record<Verdict, string> = {
+  real: 'bg-[#248a3d]/10 text-[#248a3d]',
+  doubtful: 'bg-[#c27c0e]/10 text-[#a05a00]',
+  artifact: 'bg-red-500/10 text-red-600',
+  lowF: 'bg-black/5 text-[#6e6e73]',
+};
 
 // Link back to the Measurement landing page, only when served from its /qo/
 // path — in local dev "../" would just reload this app and drop unsaved work.
@@ -199,6 +224,9 @@ export default function App() {
   const [globalSuggestedMaxFreq, setGlobalSuggestedMaxFreq] = useState<number>(5000);
   const [manualMaxFreq, setManualMaxFreq] = useState<number>(5000);
   const [showPeaksInAssemble, setShowPeaksInAssemble] = useState<boolean>(true);
+  // Heatmap by default: with dozens of files the overlaid line chart is unreadable.
+  const [assembleView, setAssembleView] = useState<'heatmap' | 'lines'>('heatmap');
+  const [assembleNormRows, setAssembleNormRows] = useState<boolean>(true);
   const [targetFreqInterval, setTargetFreqInterval] = useState<number>(1.0);
   const [tempTargetFreqInterval, setTempTargetFreqInterval] = useState<number>(1.0);
   const [useTargetInterval, setUseTargetInterval] = useState<boolean>(true);
@@ -1291,7 +1319,11 @@ export default function App() {
 
   const [error, setError] = useState<string | null>(null);
   const [selectedFileIndex, setSelectedFileIndex] = useState(0);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'assemble' | 'raw' | 'torque' | 'landau' | 'branch' | 'harmonics' | 'symmetry' | 'lkfit' | 'fftrange' | string>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'assemble' | 'raw' | 'torque' | 'landau' | 'branch' | 'harmonics' | 'symmetry' | 'lkfit' | 'fftrange' | string>('wf1');
+  // Guided workflow: the peaks picked in step 2 and carried through steps 3–5
+  // (saved per bucket with the other settings), and the channel being analysed.
+  const [pickedPeaks, setPickedPeaks] = useState<PickedPeak[]>([]);
+  const [wfColumn, setWfColumn] = useState<string>('');
   const [symmetryCenter, setSymmetryCenter] = useState<number>(0);
   const [symmetryMaxFreq, setSymmetryMaxFreq] = useState<number>(5000);
   const [symmetryMinFreq, setSymmetryMinFreq] = useState<number>(0);
@@ -1376,6 +1408,10 @@ export default function App() {
   }, [isAuthReady, user]);
 
   // --- Clear results when parameters change to prevent stale data ---
+  // Angle settings (blmMode / blmPerDegree / blmOffset / readAngleFromTitle) are
+  // deliberately absent: angles are re-resolved from them on every render and no
+  // FFT result depends on them, so calibrating the angle in step 1 must not throw
+  // away a finished Process All.
   useEffect(() => {
     if (isInitialLoad.current) return;
     if (suppressResultClear.current) { suppressResultClear.current = false; return; }
@@ -1384,7 +1420,7 @@ export default function App() {
     selectedBColumn, selectedRColumns, minB, maxB, polyDegree,
     interpPoints, windowType, spikeRemoval, spikeKernel, spikeThreshold,
     smoothing, smoothWindow, freqThresholds, autoThreshold, complexMode, phase,
-    useTargetInterval, targetFreqInterval, blmMode, blmPerDegree, blmOffset,
+    useTargetInterval, targetFreqInterval,
     selectedPrefix
   ]);
 
@@ -2716,7 +2752,9 @@ export default function App() {
     symmetryMaxFreq, symmetryMinFreq, maxDerivMinB, maxDerivMaxB,
     minPeakWidth, autoThreshold, readAngleFromTitle, prefixLocked,
     devFitMinB, devFitMaxB, devPolyDegree, devThresholdSigma, devDirection, devMode,
+    pickedPeaks, wfColumn,
   }), [
+    pickedPeaks, wfColumn,
     selectedBColumn, selectedRColumns, minB, maxB, polyDegree,
     interpPoints, windowType, spikeRemoval, spikeKernel, spikeThreshold,
     smoothing, smoothWindow, freqThresholds, complexMode, phase,
@@ -2767,6 +2805,9 @@ export default function App() {
     if (data.devThresholdSigma !== undefined) setDevThresholdSigma(data.devThresholdSigma);
     if (data.devDirection !== undefined) setDevDirection(data.devDirection);
     if (data.devMode !== undefined) setDevMode(data.devMode);
+    // picked peaks belong to this bucket's files — a bucket without any starts empty
+    setPickedPeaks(Array.isArray(data.pickedPeaks) ? data.pickedPeaks : []);
+    if (data.wfColumn !== undefined) setWfColumn(data.wfColumn);
   }, []);
 
   const emptyTemperatureBucket = (settings: Record<string, any> = {}): TemperatureBucket => ({ groups: [], settings });
@@ -3827,6 +3868,28 @@ export default function App() {
     return list;
   }, [files, resolveBlm]);
 
+  // ── Guided workflow inputs ──────────────────────────────────────
+  // NHMFL sequence files suffix every column with the file number
+  // (NbIrTe4_003, NbIrTe4_004, …); strip it so one channel is one channel
+  // across the whole angle series.
+  const wfSeries = useMemo<WfSeries[]>(
+    () => landauSeriesList.map(s => ({ ...s, col: s.col.replace(/_\d{3}$/, ''), fileName: files[s.fileIdx]?.name ?? s.key })),
+    [landauSeriesList, files],
+  );
+  const wfColumns = useMemo(() => [...new Set(wfSeries.map(s => s.col))], [wfSeries]);
+  const wfCol = wfColumns.includes(wfColumn) ? wfColumn : wfColumns[0] ?? '';
+  const angleSource: 'title' | 'blm' | 'order' = readAngleFromTitle ? 'title' : blmMode === 'metadata' ? 'blm' : 'order';
+  const setAngleSource = (s: 'title' | 'blm' | 'order') => {
+    setReadAngleFromTitle(s === 'title');
+    if (s !== 'title') setBlmMode(s === 'blm' ? 'metadata' : 'step');
+  };
+  // Angles are re-resolved live, so picked peaks follow a changed calibration.
+  const pickedWithAngles = useMemo(() => pickedPeaks.map(p => {
+    const s = wfSeries.find(x => x.fileName === p.fileName && x.col === p.col);
+    return s && s.blm !== p.angle ? { ...p, angle: s.blm } : p;
+  }), [pickedPeaks, wfSeries]);
+  const angleNote = `${angleSource === 'blm' ? 'BLM 컬럼' : angleSource === 'title' ? '파일명 숫자' : '파일 순서'} · BLM/° = ${blmPerDegree} · 오프셋 ${blmOffset}°`;
+
   const landauOpts = useMemo(() => ({
     smoothWin: landauSmoothWin, prominenceFrac: landauProm,
     integerAt: landauIntegerAt, n0: landauN0, useBoth: landauUseBoth,
@@ -3924,6 +3987,23 @@ export default function App() {
     [ifftSelected, ifftBands, ifftEdge],
   );
 
+  // Automatic verdict for every detected peak of the selected series, and for
+  // the top peaks of every processed file — see src/lib/verify.ts. The all-file
+  // table only runs while this tab is open.
+  const ifftChecks = useMemo(() => {
+    if (!ifftSelected) return [] as PeakCheck[];
+    const u = toUniform(ifftSelected.series);
+    return u ? ifftSelected.result.detectedPeaks.slice(0, 8).map(p => checkPeak(u, p.frequency)) : [];
+  }, [ifftSelected]);
+  const ifftAllChecks = useMemo(() => {
+    if (activeTab !== 'ifft') return [];
+    return landauSeriesList.map(s => {
+      const u = toUniform(s.result.plotData.map(d => ({ invB: d.invB, val: d.deltaR })));
+      const checks = u ? s.result.detectedPeaks.slice(0, 3).map(p => checkPeak(u, p.frequency)) : [];
+      return { key: s.key, blm: s.blm, col: s.col, checks };
+    });
+  }, [landauSeriesList, activeTab]);
+
   // Both decimated the same way so an honest visual comparison (same point
   // density either side) is what actually reaches the chart.
   const ifftOriginalLine = useMemo(
@@ -3983,7 +4063,8 @@ export default function App() {
   // (Dashboard, Raw) and the per-file detail views; the self-contained analysis
   // tabs (Torque, Landau, Harmonics, Symmetry, Branch, FFT Assemble) render
   // full-width with their own inline controls.
-  const showControlSidebar = activeTab === 'dashboard' || activeTab === 'raw' || files.some(f => f.id === activeTab);
+  // Steps 1–2 need Process All and the processing parameters next to them.
+  const showControlSidebar = activeTab === 'dashboard' || activeTab === 'raw' || activeTab === 'wf1' || activeTab === 'wf2' || files.some(f => f.id === activeTab);
 
   // Gate: every session starts by naming (or reloading) a sample, before any
   // dashboard is shown. This is what saveSessionToFile/loadSessionFromFile
@@ -4331,9 +4412,38 @@ export default function App() {
         })()}
       </div>
 
-      {/* Tabs Navigation */}
+      {/* Guided analysis order — the main way through the data */}
+      {files.length > 0 && (
+        <nav className="mb-3 grid grid-cols-5 gap-1.5" aria-label="분석 순서">
+          {WORKFLOW_STEPS.map((s, i) => {
+            const on = activeTab === s.id;
+            const done = s.n === 2 ? pickedPeaks.length > 0
+              : s.n === 3 ? pickedPeaks.length > 0 && pickedPeaks.every(p => p.status !== 'unchecked')
+              : s.n === 4 ? pickedPeaks.some(p => p.branch)
+              : false;
+            return (
+              <button key={s.id} onClick={() => setActiveTab(s.id)}
+                className={`relative flex items-center gap-2.5 rounded-2xl px-4 py-3 text-left transition-all ${
+                  on ? 'bg-[#1d1d1f] text-white shadow-[0_8px_24px_-12px_rgba(0,0,0,.5)]' : 'bg-white hover:bg-white/70 shadow-[0_1px_3px_rgba(0,0,0,.04)]'
+                }`}>
+                <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[13px] font-semibold ${
+                  on ? 'bg-white text-[#1d1d1f]' : done ? 'bg-[#248a3d] text-white' : 'bg-black/5 text-[#1d1d1f]'
+                }`}>{done && !on ? <Check size={14} /> : s.n}</span>
+                <span className="min-w-0">
+                  <span className={`block text-[11px] ${on ? 'text-white/60' : 'text-[#86868b]'}`}>STEP {s.n}</span>
+                  <span className="block truncate text-[14px] font-semibold">{s.label}</span>
+                </span>
+                {i < WORKFLOW_STEPS.length - 1 && <span className={`absolute -right-1.5 top-1/2 z-10 -translate-y-1/2 text-[12px] ${on ? 'text-[#1d1d1f]' : 'text-black/20'}`}>›</span>}
+              </button>
+            );
+          })}
+        </nav>
+      )}
+
+      {/* Individual tools */}
       {files.length > 0 && (
         <nav className="mb-6 flex items-center gap-1 overflow-x-auto no-scrollbar bg-white rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,.04)] px-2 py-2">
+          <span className="shrink-0 pl-2 pr-1 text-[11px] text-[#86868b]">개별 도구</span>
           {(() => {
             const angleOnlyTabs = new Set(['torque', 'landau', 'harmonics', 'symmetry', 'branch']);
             const allTabs: [string, string][] = [
@@ -4986,7 +5096,27 @@ export default function App() {
 
         {/* Main Content / Charts */}
         <div className={`space-y-12 ${showControlSidebar ? 'lg:col-span-9' : 'lg:col-span-12'}`}>
-          {activeTab === 'dashboard' ? (
+          {activeTab === 'wf1' ? (
+            <AngleStep
+              series={wfSeries} column={wfCol} columns={wfColumns} onColumn={setWfColumn}
+              angleSource={angleSource} onAngleSource={setAngleSource}
+              blmPerDegree={blmPerDegree} blmOffset={blmOffset}
+              onApply={(perDeg, offset) => {
+                setBlmPerDegree(Number(perDeg.toPrecision(6)));
+                setBlmOffset(Number(offset.toFixed(2)));
+              }}
+            />
+          ) : activeTab === 'wf2' ? (
+            <PeakPickStep series={wfSeries} column={wfCol} columns={wfColumns} onColumn={setWfColumn}
+              picked={pickedWithAngles} setPicked={setPickedPeaks} />
+          ) : activeTab === 'wf3' ? (
+            <VerifyStep series={wfSeries} picked={pickedWithAngles} setPicked={setPickedPeaks} />
+          ) : activeTab === 'wf4' ? (
+            <EvolutionStep picked={pickedWithAngles} setPicked={setPickedPeaks} />
+          ) : activeTab === 'wf5' ? (
+            <SummaryStep picked={pickedWithAngles} sampleId={sampleId ?? 'sample'} angleNote={angleNote}
+              onGo={n => setActiveTab(`wf${n}`)} />
+          ) : activeTab === 'dashboard' ? (
             <div className="space-y-12">
               {files.length > 0 && (
                 <div className="bg-white text-[#1d1d1f] p-8 border border-black/10 rounded-2xl">
@@ -7869,9 +7999,22 @@ export default function App() {
                         >
                           Export FFT Assemble
                         </button>
-                        <div className="text-right">
-                          <span className="text-[12px] tabular-nums opacity-40 block">Waterfall View</span>
-                          <span className="text-[12px] tabular-nums opacity-40 block">{assembleData.length} Files Assembled</span>
+                        <div className="flex flex-col items-end gap-1.5">
+                          <div className="flex bg-black/5 rounded-full p-0.5">
+                            {([['heatmap', '히트맵'], ['lines', '겹친 곡선']] as const).map(([v, label]) => (
+                              <button key={v} onClick={() => setAssembleView(v)}
+                                className={`px-3 py-1 text-[12px] rounded-full transition-all ${assembleView === v ? 'bg-white font-medium shadow-[0_1px_3px_rgba(0,0,0,.12)]' : 'text-[#1d1d1f]/60 hover:text-[#1d1d1f]'}`}>
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                          {assembleView === 'heatmap' && (
+                            <label className="flex items-center gap-1.5 text-[11px] text-[#6e6e73]">
+                              <input type="checkbox" checked={assembleNormRows} onChange={e => setAssembleNormRows(e.target.checked)} className="accent-[#0071e3]" />
+                              행마다 정규화
+                            </label>
+                          )}
+                          <span className="text-[11px] tabular-nums text-[#86868b]">{assembleData.length} files</span>
                         </div>
                       </div>
                     </div>
@@ -7886,6 +8029,17 @@ export default function App() {
 
                     {assembleData.length > 0 && (
                       <div className="space-y-12">
+                         {assembleView === 'heatmap' ? (
+                           <div className="w-full bg-[#fbfbfd] p-6 pt-10 border border-black/[0.06] rounded-xl">
+                             <FFTHeatmap
+                               rows={assembleData}
+                               fMax={Number(autoFFTRange ? assembleSuggestedMax : manualMaxFreq) || 2000}
+                               normalizeRows={assembleNormRows}
+                               showPeaks={showPeaksInAssemble}
+                               rowLabel={blmMode === 'step' ? 'Step' : 'BLM'}
+                             />
+                           </div>
+                         ) : (
                          <div className="h-[600px] w-full bg-[#fbfbfd] p-6 border border-black/[0.06] rounded-xl">
                             <h4 className="text-xs tabular-nums opacity-60 mb-6 text-center">FFT Evolution vs {blmMode === 'step' ? 'Steps' : 'BLM'}</h4>
                             <ResponsiveContainer width="100%" height="90%">
@@ -7944,6 +8098,7 @@ export default function App() {
                               </LineChart>
                             </ResponsiveContainer>
                           </div>
+                         )}
 
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {assembleChartData.map((item) => (
@@ -8298,11 +8453,16 @@ export default function App() {
                               prev.includes(p.frequency) ? prev.filter(f => f !== p.frequency) : [...prev, p.frequency]
                             );
                           }}
-                          title="Click to add/remove — select two or more to combine and overlay their sum"
-                          className={`px-3 py-1 text-[13px] rounded-full border transition-colors ${
+                          title={`${ifftChecks[i] ? `자동 검증: ${VERDICT_LABEL[ifftChecks[i].verdict]} — ${ifftChecks[i].reasons.join(', ')}\n` : ''}Click to add/remove — select two or more to combine and overlay their sum`}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1 text-[13px] rounded-full border transition-colors ${
                             isSelected ? 'bg-[#0071e3]/20 border-[#0071e3] text-[#0071e3]' : 'bg-black/5 border-black/10 hover:bg-black/5'
                           }`}
                         >
+                          {ifftChecks[i] && (
+                            <span className={`w-2 h-2 rounded-full ${
+                              ifftChecks[i].verdict === 'real' ? 'bg-[#248a3d]' : ifftChecks[i].verdict === 'doubtful' ? 'bg-[#e0a100]' : ifftChecks[i].verdict === 'artifact' ? 'bg-red-500' : 'bg-black/25'
+                            }`} />
+                          )}
                           {p.frequency.toFixed(1)} T
                         </button>
                       );
@@ -8316,6 +8476,65 @@ export default function App() {
                       </button>
                     )}
                   </div>
+                )}
+
+                {ifftChecks.length > 0 && (
+                  <div className="px-6 py-4 border-b border-black/10">
+                    <div className="flex items-baseline justify-between gap-3 flex-wrap mb-2">
+                      <span className="text-[13px] font-semibold">자동 검증</span>
+                      <span className="text-[11px] text-[#86868b]">
+                        각 봉우리만 대역통과 → 역 FFT → 1/B 3구간 국소 주파수(drift)와 포락선 기울기. 진짜: drift &lt; 3%, 진폭이 B 와 함께 증가, SNR ≥ 10
+                      </span>
+                    </div>
+                    <table className="w-full text-[12px] tabular-nums">
+                      <thead><tr className="text-left text-[11px] text-[#86868b]">
+                        <th className="py-1 pr-3 font-normal">F (T)</th><th className="pr-3 font-normal">판정</th><th className="pr-3 font-normal">진동 수</th>
+                        <th className="pr-3 font-normal">SNR</th><th className="pr-3 font-normal">drift</th><th className="pr-3 font-normal">포락선 기울기</th><th className="font-normal">근거</th>
+                      </tr></thead>
+                      <tbody>
+                        {ifftChecks.map(c => (
+                          <tr key={c.F} className="border-t border-black/[0.06] cursor-pointer hover:bg-black/[0.02]"
+                            onClick={() => setIfftSelectedPeakFreqs(prev => prev.includes(c.F) ? prev.filter(f => f !== c.F) : [...prev, c.F])}>
+                            <td className="py-1.5 pr-3">{c.F.toFixed(1)}</td>
+                            <td className="pr-3"><span className={`px-2 py-0.5 rounded-full text-[11px] ${VERDICT_STYLE[c.verdict]}`}>{VERDICT_LABEL[c.verdict]}</span></td>
+                            <td className="pr-3">{c.cycles.toFixed(1)}</td>
+                            <td className="pr-3">{c.snr.toFixed(1)}</td>
+                            <td className="pr-3">{Number.isFinite(c.drift) ? `${(c.drift * 100).toFixed(1)}%` : '—'}</td>
+                            <td className="pr-3">{c.envSlope.toFixed(1)}</td>
+                            <td className="text-[11px] text-[#6e6e73]">{c.reasons.join(' · ')}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {ifftAllChecks.length > 1 && (
+                  <details className="px-6 py-3 border-b border-black/10">
+                    <summary className="cursor-pointer text-[13px] font-semibold">
+                      모든 파일 자동 검증 <span className="font-normal text-[#86868b]">— 파일·채널별 상위 봉우리 3개 ({ifftAllChecks.length}개, 행을 누르면 그 파일로)</span>
+                    </summary>
+                    <div className="mt-2 max-h-80 overflow-y-auto">
+                      <table className="w-full text-[12px] tabular-nums">
+                        <tbody>
+                          {ifftAllChecks.map(r => (
+                            <tr key={r.key} onClick={() => setIfftResultKey(r.key)}
+                              className={`border-t border-black/[0.06] cursor-pointer hover:bg-black/[0.02] ${r.key === ifftSelected?.key ? 'bg-[#0071e3]/[0.05]' : ''}`}>
+                              <td className="py-1.5 pr-3 whitespace-nowrap">{r.blm}°</td>
+                              <td className="pr-3 whitespace-nowrap">{r.col}</td>
+                              <td className="flex flex-wrap gap-1.5 py-1">
+                                {r.checks.length === 0 ? <span className="text-[#86868b]">봉우리 없음</span> : r.checks.map(c => (
+                                  <span key={c.F} title={c.reasons.join(', ')} className={`px-2 py-0.5 rounded-full text-[11px] ${VERDICT_STYLE[c.verdict]}`}>
+                                    {c.F.toFixed(0)} T · {VERDICT_LABEL[c.verdict]}
+                                  </span>
+                                ))}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </details>
                 )}
 
                 <div className="flex items-center gap-4 px-6 py-3 flex-wrap">
