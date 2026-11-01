@@ -5,24 +5,25 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ARRES Spin Asymmetry</title>
 <style>
-  :root {
-    --ground: #eef1f0;
+  body { font-variant-numeric: tabular-nums; /* measurement */ }
+:root {
+    --ground: #f5f5f7;
     --surface: #ffffff;
-    --sunk: #e4e9e7;
-    --line: #d1d9d7;
-    --line-soft: #e2e8e6;
-    --ink: #141a19;
-    --muted: #5a6764;
-    --faint: #8b9793;
-    --accent: #0b7361;
-    --accent-soft: #d7ebe6;
+    --sunk: #ececf0;
+    --line: #d2d2d7;
+    --line-soft: #e5e5ea;
+    --ink: #1d1d1f;
+    --muted: #6e6e73;
+    --faint: #86868b;
+    --accent: #0071e3;
+    --accent-soft: #e8f1fc;
     --warn: #a85510;
     --crit: #9e2b2b;
-    --ok: #0b7361;
+    --ok: #0071e3;
     --shadow: 0 1px 2px rgba(20, 26, 25, .06), 0 8px 24px -16px rgba(20, 26, 25, .35);
 
-    --ui: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
-    --mono: "Cascadia Mono", Consolas, "SF Mono", ui-monospace, monospace;
+    --ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Apple SD Gothic Neo", "Pretendard", "Segoe UI Variable Text", "Segoe UI", "Malgun Gothic", system-ui, sans-serif;
+    --mono: var(--ui);
 
     --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
     --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
@@ -32,37 +33,37 @@
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --ground: #0d1211;
-      --surface: #151b1a;
-      --sunk: #101615;
-      --line: #26302e;
-      --line-soft: #1d2624;
-      --ink: #e3e9e7;
-      --muted: #94a19d;
-      --faint: #6d7a76;
-      --accent: #45c4a8;
-      --accent-soft: #16302b;
+      --ground: #000000;
+      --surface: #161617;
+      --sunk: #0b0b0c;
+      --line: #333336;
+      --line-soft: #242426;
+      --ink: #f5f5f7;
+      --muted: #a1a1a6;
+      --faint: #86868b;
+      --accent: #2997ff;
+      --accent-soft: #0a2540;
       --warn: #d9903d;
       --crit: #e0756a;
-      --ok: #45c4a8;
+      --ok: #2997ff;
       --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -16px rgba(0, 0, 0, .8);
       color-scheme: dark;
     }
   }
   :root[data-theme="dark"] {
-    --ground: #0d1211;
-    --surface: #151b1a;
-    --sunk: #101615;
-    --line: #26302e;
-    --line-soft: #1d2624;
-    --ink: #e3e9e7;
-    --muted: #94a19d;
-    --faint: #6d7a76;
-    --accent: #45c4a8;
-    --accent-soft: #16302b;
+    --ground: #000000;
+    --surface: #161617;
+    --sunk: #0b0b0c;
+    --line: #333336;
+    --line-soft: #242426;
+    --ink: #f5f5f7;
+    --muted: #a1a1a6;
+    --faint: #86868b;
+    --accent: #2997ff;
+    --accent-soft: #0a2540;
     --warn: #d9903d;
     --crit: #e0756a;
-    --ok: #45c4a8;
+    --ok: #2997ff;
     --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -16px rgba(0, 0, 0, .8);
     color-scheme: dark;
   }
@@ -101,21 +102,21 @@
   .brand b {
     font-size: 13px;
     font-weight: 600;
-    letter-spacing: .09em;
-    text-transform: uppercase;
+    letter-spacing: -0.005em;
+    text-transform: none;
   }
   .brand span {
     font-size: 11px;
     color: var(--faint);
-    letter-spacing: .04em;
+    letter-spacing: -0.005em;
   }
   .chips { display: flex; gap: 7px; flex-wrap: wrap; margin-left: auto; }
   .chip {
     font-family: var(--mono);
     font-size: 11px;
-    letter-spacing: .02em;
+    letter-spacing: -0.005em;
     padding: 3px 9px;
-    border-radius: 3px;
+    border-radius: 8px;
     border: 1px solid var(--line);
     background: var(--sunk);
     color: var(--muted);
@@ -162,14 +163,14 @@
   .card {
     background: var(--surface);
     border: 1px solid var(--line);
-    border-radius: 6px;
+    border-radius: 14px;
     box-shadow: var(--shadow);
   }
   .card > .head {
     font-family: var(--mono);
     font-size: 10.5px;
-    letter-spacing: .13em;
-    text-transform: uppercase;
+    letter-spacing: -0.005em;
+    text-transform: none;
     color: var(--faint);
     padding: 9px 13px 0;
   }
@@ -198,7 +199,7 @@
     color: var(--ink);
     background: var(--sunk);
     border: 1px solid var(--line);
-    border-radius: 4px;
+    border-radius: 8px;
     padding: 5px 7px;
   }
   select:focus-visible, input:focus-visible, button:focus-visible {
@@ -218,11 +219,11 @@
   .dual-range-track {
     position: absolute; left: 0; right: 0; top: 50%;
     height: 4px; margin-top: -2px;
-    border-radius: 2px; background: var(--sunk); border: 1px solid var(--line);
+    border-radius: 8px; background: var(--sunk); border: 1px solid var(--line);
   }
   .dual-range-fill {
     position: absolute; top: 50%; height: 4px; margin-top: -2px;
-    border-radius: 2px; background: var(--accent);
+    border-radius: 8px; background: var(--accent);
   }
   .dual-range-input {
     position: absolute; left: 0; top: 0;
@@ -270,7 +271,7 @@
     font-size: 10.5px;
     background: var(--sunk);
     padding: 0 3px;
-    border-radius: 2px;
+    border-radius: 8px;
   }
   /* -------------------------------------------------------- disclosure --- */
   .disclosure { margin-top: -2px; }
@@ -282,7 +283,7 @@
     gap: 5px;
     font-family: var(--mono);
     font-size: 10.5px;
-    letter-spacing: .04em;
+    letter-spacing: -0.005em;
     color: var(--faint);
     user-select: none;
     transition: color 150ms ease, transform 160ms var(--ease-out);
@@ -317,12 +318,12 @@
   button.ghost {
     font-family: var(--mono);
     font-size: 11px;
-    letter-spacing: .06em;
-    text-transform: uppercase;
+    letter-spacing: -0.005em;
+    text-transform: none;
     color: var(--ink);
     background: var(--sunk);
     border: 1px solid var(--line);
-    border-radius: 4px;
+    border-radius: 8px;
     padding: 6px 10px;
     cursor: pointer;
     transition: transform 160ms var(--ease-out), border-color 150ms ease, color 150ms ease;
@@ -369,8 +370,8 @@
     font-family: var(--mono);
     font-size: 11px;
     font-weight: 600;
-    letter-spacing: .06em;
-    text-transform: uppercase;
+    letter-spacing: -0.005em;
+    text-transform: none;
     color: var(--muted);
     display: flex;
     justify-content: space-between;
@@ -381,7 +382,7 @@
     font-style: normal;
     font-weight: 400;
     color: var(--faint);
-    letter-spacing: .02em;
+    letter-spacing: -0.005em;
     text-transform: none;
   }
   canvas { display: block; width: 100%; height: auto; }
@@ -389,8 +390,8 @@
   .profile-pair .sub {
     font-family: var(--mono);
     font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: .04em;
+    text-transform: none;
+    letter-spacing: -0.005em;
     color: var(--faint);
     margin: 0 0 4px;
   }
@@ -417,7 +418,7 @@
     text-align: right;
     font-weight: 500;
     color: var(--faint);
-    letter-spacing: .04em;
+    letter-spacing: -0.005em;
     padding: 0 0 3px;
     border-bottom: 1px solid var(--line-soft);
   }
@@ -427,7 +428,7 @@
   .bandtable td.swatch i {
     display: inline-block;
     width: 9px; height: 9px;
-    border-radius: 2px;
+    border-radius: 8px;
   }
   .bandtable tr.weak td { color: var(--faint); }
   .bandtable tr.weak td.d { text-decoration: line-through; }
@@ -454,8 +455,8 @@
   .hist-day {
     font-family: var(--mono);
     font-size: 10px;
-    letter-spacing: .08em;
-    text-transform: uppercase;
+    letter-spacing: -0.005em;
+    text-transform: none;
     color: var(--faint);
     background: var(--surface);
     padding: 9px 0 4px;
@@ -468,7 +469,7 @@
     gap: 7px;
     padding: 5px 4px;
     margin: 0 -4px;
-    border-radius: 4px;
+    border-radius: 8px;
     font-size: 11.5px;
   }
   .hist-row.dim { opacity: .4; }
@@ -483,10 +484,10 @@
   .hist-type {
     font-family: var(--mono);
     font-size: 9px;
-    text-transform: uppercase;
-    letter-spacing: .03em;
+    text-transform: none;
+    letter-spacing: -0.005em;
     padding: 1px 5px;
-    border-radius: 3px;
+    border-radius: 8px;
     background: var(--sunk);
     color: var(--muted);
     flex-shrink: 0;
@@ -506,7 +507,7 @@
     font-family: var(--mono);
     font-size: 9.5px;
     padding: 2px 6px;
-    border-radius: 3px;
+    border-radius: 8px;
     border: 1px solid var(--line);
     background: var(--sunk);
     color: var(--ink);
@@ -520,24 +521,25 @@
   .hist-btn:active { transform: scale(0.95); }
 </style>
 <style>
-  :root {
-    --ground: #eef1f0;
+  body { font-variant-numeric: tabular-nums; /* measurement */ }
+:root {
+    --ground: #f5f5f7;
     --surface: #ffffff;
-    --sunk: #e4e9e7;
-    --line: #d1d9d7;
-    --line-soft: #e2e8e6;
-    --ink: #141a19;
-    --muted: #5a6764;
-    --faint: #8b9793;
-    --accent: #0b7361;
-    --accent-soft: #d7ebe6;
+    --sunk: #ececf0;
+    --line: #d2d2d7;
+    --line-soft: #e5e5ea;
+    --ink: #1d1d1f;
+    --muted: #6e6e73;
+    --faint: #86868b;
+    --accent: #0071e3;
+    --accent-soft: #e8f1fc;
     --warn: #a85510;
     --crit: #9e2b2b;
-    --ok: #0b7361;
+    --ok: #0071e3;
     --shadow: 0 1px 2px rgba(20, 26, 25, .06), 0 8px 24px -16px rgba(20, 26, 25, .35);
 
-    --ui: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
-    --mono: "Cascadia Mono", Consolas, "SF Mono", ui-monospace, monospace;
+    --ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Apple SD Gothic Neo", "Pretendard", "Segoe UI Variable Text", "Segoe UI", "Malgun Gothic", system-ui, sans-serif;
+    --mono: var(--ui);
 
     --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
     --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
@@ -547,37 +549,37 @@
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --ground: #0d1211;
-      --surface: #151b1a;
-      --sunk: #101615;
-      --line: #26302e;
-      --line-soft: #1d2624;
-      --ink: #e3e9e7;
-      --muted: #94a19d;
-      --faint: #6d7a76;
-      --accent: #45c4a8;
-      --accent-soft: #16302b;
+      --ground: #000000;
+      --surface: #161617;
+      --sunk: #0b0b0c;
+      --line: #333336;
+      --line-soft: #242426;
+      --ink: #f5f5f7;
+      --muted: #a1a1a6;
+      --faint: #86868b;
+      --accent: #2997ff;
+      --accent-soft: #0a2540;
       --warn: #d9903d;
       --crit: #e0756a;
-      --ok: #45c4a8;
+      --ok: #2997ff;
       --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -16px rgba(0, 0, 0, .8);
       color-scheme: dark;
     }
   }
   :root[data-theme="dark"] {
-    --ground: #0d1211;
-    --surface: #151b1a;
-    --sunk: #101615;
-    --line: #26302e;
-    --line-soft: #1d2624;
-    --ink: #e3e9e7;
-    --muted: #94a19d;
-    --faint: #6d7a76;
-    --accent: #45c4a8;
-    --accent-soft: #16302b;
+    --ground: #000000;
+    --surface: #161617;
+    --sunk: #0b0b0c;
+    --line: #333336;
+    --line-soft: #242426;
+    --ink: #f5f5f7;
+    --muted: #a1a1a6;
+    --faint: #86868b;
+    --accent: #2997ff;
+    --accent-soft: #0a2540;
     --warn: #d9903d;
     --crit: #e0756a;
-    --ok: #45c4a8;
+    --ok: #2997ff;
     --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -16px rgba(0, 0, 0, .8);
     color-scheme: dark;
   }
@@ -615,21 +617,21 @@
   .brand b {
     font-size: 13px;
     font-weight: 600;
-    letter-spacing: .09em;
-    text-transform: uppercase;
+    letter-spacing: -0.005em;
+    text-transform: none;
   }
   .brand span {
     font-size: 11px;
     color: var(--faint);
-    letter-spacing: .04em;
+    letter-spacing: -0.005em;
   }
   .chips { display: flex; gap: 7px; flex-wrap: wrap; margin-left: auto; }
   .chip {
     font-family: var(--mono);
     font-size: 11px;
-    letter-spacing: .02em;
+    letter-spacing: -0.005em;
     padding: 3px 9px;
-    border-radius: 3px;
+    border-radius: 8px;
     border: 1px solid var(--line);
     background: var(--sunk);
     color: var(--muted);
@@ -673,14 +675,14 @@
   .card {
     background: var(--surface);
     border: 1px solid var(--line);
-    border-radius: 6px;
+    border-radius: 14px;
     box-shadow: var(--shadow);
   }
   .card > .head {
     font-family: var(--mono);
     font-size: 10.5px;
-    letter-spacing: .13em;
-    text-transform: uppercase;
+    letter-spacing: -0.005em;
+    text-transform: none;
     color: var(--faint);
     padding: 9px 13px 0;
   }
@@ -708,7 +710,7 @@
     color: var(--ink);
     background: var(--sunk);
     border: 1px solid var(--line);
-    border-radius: 4px;
+    border-radius: 8px;
     padding: 5px 7px;
   }
   select:focus-visible, input:focus-visible, button:focus-visible {
@@ -723,12 +725,12 @@
   button.ghost {
     font-family: var(--mono);
     font-size: 11px;
-    letter-spacing: .06em;
-    text-transform: uppercase;
+    letter-spacing: -0.005em;
+    text-transform: none;
     color: var(--ink);
     background: var(--sunk);
     border: 1px solid var(--line);
-    border-radius: 4px;
+    border-radius: 8px;
     padding: 6px 10px;
     cursor: pointer;
     transition: transform 160ms var(--ease-out), border-color 150ms ease, color 150ms ease;
@@ -749,11 +751,11 @@
   .dual-range-track {
     position: absolute; left: 0; right: 0; top: 50%;
     height: 4px; margin-top: -2px;
-    border-radius: 2px; background: var(--sunk); border: 1px solid var(--line);
+    border-radius: 8px; background: var(--sunk); border: 1px solid var(--line);
   }
   .dual-range-fill {
     position: absolute; top: 50%; height: 4px; margin-top: -2px;
-    border-radius: 2px; background: var(--accent);
+    border-radius: 8px; background: var(--accent);
   }
   .dual-range-input {
     position: absolute; left: 0; top: 0;
@@ -808,7 +810,7 @@
     font-size: 10.5px;
     background: var(--sunk);
     padding: 0 3px;
-    border-radius: 2px;
+    border-radius: 8px;
   }
   /* -------------------------------------------------------- disclosure --- */
   .disclosure { margin-top: -2px; }
@@ -820,7 +822,7 @@
     gap: 5px;
     font-family: var(--mono);
     font-size: 10.5px;
-    letter-spacing: .04em;
+    letter-spacing: -0.005em;
     color: var(--faint);
     user-select: none;
     transition: color 150ms ease, transform 160ms var(--ease-out);
@@ -886,8 +888,8 @@
     font-family: var(--mono);
     font-size: 11px;
     font-weight: 600;
-    letter-spacing: .06em;
-    text-transform: uppercase;
+    letter-spacing: -0.005em;
+    text-transform: none;
     color: var(--muted);
     display: flex;
     justify-content: space-between;
@@ -898,7 +900,7 @@
     font-style: normal;
     font-weight: 400;
     color: var(--faint);
-    letter-spacing: .02em;
+    letter-spacing: -0.005em;
     text-transform: none;
   }
   canvas { display: block; width: 100%; height: auto; }
@@ -932,8 +934,8 @@
   .hist-day {
     font-family: var(--mono);
     font-size: 10px;
-    letter-spacing: .08em;
-    text-transform: uppercase;
+    letter-spacing: -0.005em;
+    text-transform: none;
     color: var(--faint);
     background: var(--surface);
     padding: 9px 0 4px;
@@ -946,7 +948,7 @@
     gap: 7px;
     padding: 5px 4px;
     margin: 0 -4px;
-    border-radius: 4px;
+    border-radius: 8px;
     font-size: 11.5px;
   }
   .hist-row.dim { opacity: .4; }
@@ -961,10 +963,10 @@
   .hist-type {
     font-family: var(--mono);
     font-size: 9px;
-    text-transform: uppercase;
-    letter-spacing: .03em;
+    text-transform: none;
+    letter-spacing: -0.005em;
     padding: 1px 5px;
-    border-radius: 3px;
+    border-radius: 8px;
     background: var(--sunk);
     color: var(--muted);
     flex-shrink: 0;
@@ -984,7 +986,7 @@
     font-family: var(--mono);
     font-size: 9.5px;
     padding: 2px 6px;
-    border-radius: 3px;
+    border-radius: 8px;
     border: 1px solid var(--line);
     background: var(--sunk);
     color: var(--ink);
@@ -1002,15 +1004,16 @@
   }
 </style>
 <style>
-  .combo-nav {
+  body { font-variant-numeric: tabular-nums; /* measurement */ }
+.combo-nav {
     display: flex; gap: 2px; padding: 6px 20px 0;
     background: var(--surface); border-bottom: 1px solid var(--line);
     font-family: var(--mono);
   }
   .combo-tab {
     appearance: none; border: none; background: none; cursor: pointer;
-    padding: 9px 16px; font: inherit; font-size: 11.5px; letter-spacing: .04em;
-    text-transform: uppercase; color: var(--faint); border-bottom: 2px solid transparent;
+    padding: 9px 16px; font: inherit; font-size: 11.5px; letter-spacing: -0.005em;
+    text-transform: none; color: var(--faint); border-bottom: 2px solid transparent;
     transition: color 150ms ease, border-color 150ms ease, transform 160ms var(--ease-out);
   }
   @media (hover: hover) and (pointer: fine) {
@@ -1033,9 +1036,9 @@
     .combo-page { transition: none; }
   }
   .brand-sample {
-    font-family: var(--mono); font-size: 11px; letter-spacing: .04em;
+    font-family: var(--mono); font-size: 11px; letter-spacing: -0.005em;
     color: var(--accent); background: var(--accent-soft);
-    border-radius: 3px; padding: 2px 7px; margin-left: -4px;
+    border-radius: 8px; padding: 2px 7px; margin-left: -4px;
   }
 </style>
 </head>
