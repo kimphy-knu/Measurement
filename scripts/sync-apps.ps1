@@ -1,7 +1,7 @@
 # Refresh the sibling tools published under site/ from their own project folders.
 #
 #   site/transport/  <- vite build of ..\transport data analysis (relative base)
-#   site/arres/      <- ..\ARRES\tools\arres_combined_demo.html (synthetic data only)
+#   site/arres/demo.html <- ..\ARRES\tools\arres_combined_demo.html (synthetic data only)
 #
 # Only build output is copied, never local_data/ or measurement files. ARRES
 # deliberately uses the demo page: arres_combined.html embeds real scans.
@@ -29,6 +29,8 @@ try {
 
 Write-Host "Copying ARRES demo from $arresDemo ..."
 New-Item -ItemType Directory -Force $arresOut | Out-Null
-Copy-Item $arresDemo (Join-Path $arresOut 'index.html') -Force
+# site/arres/index.html is the hand-written launcher (open a folder by path
+# through the local live_server.py); the demo sits beside it.
+Copy-Item $arresDemo (Join-Path $arresOut 'demo.html') -Force
 
 Write-Host 'Done. Review with `git status`, then commit and push.'
