@@ -68,6 +68,11 @@ import {
 import { MiniFFT } from './components/MiniFFT';
 import { saveText } from './lib/download';
 
+// Link back to the Measurement landing page, only when served from its /qo/
+// path — in local dev "../" would just reload this app and drop unsaved work.
+const homeHref =
+  typeof window !== 'undefined' && /\/qo\/?(index\.html)?$/.test(window.location.pathname) ? '../' : null;
+
 // ---------- Local user (no Firebase auth required) ----------
 // There is no account system; this fixed identity only satisfies the
 // persistence effects that wait for a user before reading localStorage.
@@ -3998,74 +4003,88 @@ export default function App() {
       setSampleId(id);
     };
     return (
-      <div className="min-h-screen bg-[#E4E3E0] text-[#141414] font-sans flex items-center justify-center p-4">
-        <div className="w-full max-w-md bg-[#141414] text-[#E4E3E0] border border-[#E4E3E0]/10 p-10">
-          <h1 className="text-3xl font-bold tracking-tighter uppercase italic font-serif mb-1">Quantum Analysis</h1>
-          <p className="text-xs opacity-50 font-mono uppercase tracking-widest mb-8">SdH Analysis Suite</p>
-
-          <label className="block text-[10px] font-mono uppercase opacity-60 mb-2">Sample ID</label>
-          <input
-            type="text"
-            autoFocus
-            value={sampleIdDraft}
-            onChange={(e) => setSampleIdDraft(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') startNewSample(); }}
-            placeholder="e.g. PrAlGe-01"
-            className="w-full bg-[#0a0a0a] border border-[#E4E3E0]/30 p-3 font-mono text-sm text-[#E4E3E0] focus:outline-none focus:border-[#F27D26] mb-4"
-          />
-          <button
-            onClick={startNewSample}
-            disabled={!sampleIdDraft.trim()}
-            className="w-full bg-[#F27D26] text-[#141414] font-mono text-xs uppercase tracking-widest font-bold py-3 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-opacity-90 transition-all"
-          >
-            Start
-          </button>
-
-          <div className="flex items-center gap-3 my-6">
-            <div className="h-px bg-white/10 flex-1" />
-            <span className="text-[9px] font-mono uppercase opacity-30">or</span>
-            <div className="h-px bg-white/10 flex-1" />
+      <div className="min-h-screen bg-[#f5f5f7] text-[#1d1d1f] font-sans flex flex-col">
+        {homeHref && (
+          <div className="px-6 h-12 flex items-center">
+            <a href={homeHref} className="text-[13px] text-[#6e6e73] hover:text-[#1d1d1f] transition-colors">‹ Measurement</a>
           </div>
+        )}
+        <div className="flex-1 flex items-center justify-center px-4 py-16">
+          <div className="w-full max-w-[420px]">
+            <div className="text-center mb-10">
+              <p className="text-[17px] font-semibold text-[#f56300] mb-2">SdH · dHvA · Torque</p>
+              <h1 className="text-[44px] leading-[1.05] font-bold tracking-[-0.035em]">Quantum Oscillation</h1>
+              <p className="mt-3 text-[17px] text-[#6e6e73]">샘플 이름을 정하고 시작하세요.</p>
+            </div>
 
-          {supportsFileSystemAccess ? (
-            <button
-              onClick={loadSessionViaPicker}
-              className="w-full flex items-center justify-center gap-2 border border-white/20 py-3 font-mono text-xs uppercase tracking-widest hover:bg-white/5 transition-all"
-            >
-              <FolderOpen size={14} />
-              Load Session File
-            </button>
-          ) : (
-            <label className="w-full cursor-pointer flex items-center justify-center gap-2 border border-white/20 py-3 font-mono text-xs uppercase tracking-widest hover:bg-white/5 transition-all">
-              <FolderOpen size={14} />
-              Load Session File
-              <input type="file" accept=".json" onChange={loadSessionFromFile} className="hidden" />
-            </label>
-          )}
-          {error && <p className="mt-4 text-[11px] font-mono text-red-400">{error}</p>}
+            <div className="bg-white rounded-[22px] shadow-[0_2px_10px_rgba(0,0,0,.04),0_18px_40px_-24px_rgba(0,0,0,.18)] p-7">
+              <label className="block text-[13px] font-medium text-[#6e6e73] mb-2">Sample ID</label>
+              <input
+                type="text"
+                autoFocus
+                value={sampleIdDraft}
+                onChange={(e) => setSampleIdDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') startNewSample(); }}
+                placeholder="e.g. PrAlGe-01"
+                className="w-full bg-[#f5f5f7] border border-transparent rounded-xl px-4 py-3 text-[17px] text-[#1d1d1f] placeholder:text-[#86868b] focus:outline-none focus:border-[#0071e3] focus:bg-white transition-colors mb-4"
+              />
+              <button
+                onClick={startNewSample}
+                disabled={!sampleIdDraft.trim()}
+                className="w-full bg-[#0071e3] text-white text-[17px] font-medium py-3 rounded-full disabled:opacity-30 disabled:cursor-not-allowed hover:brightness-110 transition-all"
+              >
+                시작하기
+              </button>
+
+              <div className="flex items-center gap-3 my-5">
+                <div className="h-px bg-black/10 flex-1" />
+                <span className="text-[12px] text-[#86868b]">또는</span>
+                <div className="h-px bg-black/10 flex-1" />
+              </div>
+
+              {supportsFileSystemAccess ? (
+                <button
+                  onClick={loadSessionViaPicker}
+                  className="w-full flex items-center justify-center gap-2 text-[15px] text-[#0066cc] py-2 rounded-full hover:bg-[#0066cc]/5 transition-colors"
+                >
+                  <FolderOpen size={16} />
+                  세션 파일 불러오기
+                </button>
+              ) : (
+                <label className="w-full cursor-pointer flex items-center justify-center gap-2 text-[15px] text-[#0066cc] py-2 rounded-full hover:bg-[#0066cc]/5 transition-colors">
+                  <FolderOpen size={16} />
+                  세션 파일 불러오기
+                  <input type="file" accept=".json" onChange={loadSessionFromFile} className="hidden" />
+                </label>
+              )}
+              {error && <p className="mt-4 text-[13px] text-red-600 text-center">{error}</p>}
+            </div>
+            <p className="mt-6 text-center text-[12px] text-[#86868b]">파일은 브라우저 안에서만 처리되며 업로드되지 않습니다.</p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#E4E3E0] text-[#141414] font-sans">
+    <div className="min-h-screen bg-[#f5f5f7] text-[#1d1d1f] font-sans">
       {/* App bar — brand, sample, session file and account. Sticky so Save and
           Upload stay one click away while scrolling the long analysis tabs. */}
-      <header className="sticky top-0 z-40 bg-[#141414] text-[#E4E3E0] border-b-2 border-[#F27D26]">
-        <div className="max-w-[1600px] mx-auto px-4 md:px-8 py-2.5 flex items-center gap-x-4 gap-y-2 flex-wrap">
-          <div className="flex items-baseline gap-3 pr-4 border-r border-white/10">
-            <h1 className="text-xl font-bold tracking-tighter uppercase italic font-serif leading-none whitespace-nowrap">
-              Quantum Analysis
+      <header className="sticky top-0 z-40 bg-[rgba(251,251,253,.8)] backdrop-blur-xl backdrop-saturate-[1.8] text-[#1d1d1f] border-b border-black/10">
+        <div className="max-w-[1600px] mx-auto px-4 md:px-8 min-h-12 py-1.5 flex items-center gap-x-5 gap-y-1.5 flex-wrap">
+          <div className="flex items-center gap-3">
+            {homeHref && (
+              <a href={homeHref} onClick={(e) => { if (!window.confirm('Measurement 홈으로 이동합니다. 저장하지 않은 작업은 사라집니다.')) e.preventDefault(); }}
+                className="text-[13px] text-[#6e6e73] hover:text-[#1d1d1f] transition-colors">‹</a>
+            )}
+            <h1 className="text-[17px] font-semibold tracking-[-0.02em] whitespace-nowrap">
+              Quantum Oscillation
             </h1>
-            <span className="hidden lg:inline text-[9px] font-mono uppercase tracking-widest opacity-40 whitespace-nowrap">
-              SdH Analysis Suite
-            </span>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-[9px] font-mono uppercase opacity-40">Sample</span>
-            <span className="font-mono text-sm font-bold text-[#F27D26]">{sampleId}</span>
+          <div className="flex items-center gap-1.5 pl-5 border-l border-black/10">
+            <span className="text-[12px] text-[#86868b]">Sample</span>
+            <span className="text-[13px] font-semibold">{sampleId}</span>
             <button
               title="다른 샘플로 전환 (저장 안 된 변경사항은 사라집니다)"
               onClick={() => {
@@ -4089,36 +4108,36 @@ export default function App() {
 
           <div className="ml-auto flex items-center gap-2 flex-wrap justify-end">
             {linkedSessionFileName && (
-              <span className="hidden md:inline text-[9px] font-mono opacity-40 max-w-[160px] truncate" title={`저장/불러오기 시 이 파일에 덮어씁니다: ${linkedSessionFileName}`}>
+              <span className="hidden md:inline text-[11px] tabular-nums opacity-40 max-w-[160px] truncate" title={`저장/불러오기 시 이 파일에 덮어씁니다: ${linkedSessionFileName}`}>
                 🔗 {linkedSessionFileName}
               </span>
             )}
             {saveStatus === 'saved' && lastSavedAt && (
-              <span className="text-[9px] font-mono text-[#4ADE80]">✓ Saved {lastSavedAt.toLocaleTimeString()}</span>
+              <span className="text-[11px] tabular-nums text-[#28a745]">✓ Saved {lastSavedAt.toLocaleTimeString()}</span>
             )}
             {saveStatus === 'error' && (
-              <span className="text-[9px] font-mono text-red-400">✕ Save failed</span>
+              <span className="text-[11px] tabular-nums text-red-600">✕ Save failed</span>
             )}
             <button onClick={saveSessionToFile} title={linkedSessionFileName ? `"${linkedSessionFileName}" 파일에 덮어씁니다` : '샘플 전체(raw+설정)를 로컬 JSON 파일로 저장'}
-              className="px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider border border-white/20 hover:bg-white/10 flex items-center gap-1.5 transition-colors">
-              <Save size={12} />{saveStatus === 'saving' ? 'Saving…' : 'Save'}
+              className="px-3 py-1.5 text-[13px] text-[#0066cc] rounded-full hover:bg-[#0066cc]/5 flex items-center gap-1.5 transition-colors">
+              <Save size={14} />{saveStatus === 'saving' ? 'Saving…' : 'Save'}
             </button>
             {supportsFileSystemAccess ? (
               <button
                 onClick={() => { if (window.confirm('현재 작업을 덮어씁니다. 계속할까요?')) loadSessionViaPicker(); }}
                 title="세션 파일 불러오기 (현재 작업을 덮어씁니다) — 이후 Save는 이 파일에 바로 덮어씁니다"
-                className="px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider border border-white/20 hover:bg-white/10 flex items-center gap-1.5 transition-colors"
+                className="px-3 py-1.5 text-[13px] text-[#0066cc] rounded-full hover:bg-[#0066cc]/5 flex items-center gap-1.5 transition-colors"
               >
-                <FolderOpen size={12} />Load
+                <FolderOpen size={14} />Load
               </button>
             ) : (
               <label title="저장된 세션 파일 불러오기 (현재 작업을 덮어씁니다)"
-                className="cursor-pointer px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider border border-white/20 hover:bg-white/10 flex items-center gap-1.5 transition-colors">
-                <FolderOpen size={12} />Load
+                className="cursor-pointer px-3 py-1.5 text-[13px] text-[#0066cc] rounded-full hover:bg-[#0066cc]/5 flex items-center gap-1.5 transition-colors">
+                <FolderOpen size={14} />Load
                 <input type="file" accept=".json" onChange={(e) => { if (window.confirm('현재 작업을 덮어씁니다. 계속할까요?')) loadSessionFromFile(e); else e.target.value = ''; }} className="hidden" />
               </label>
             )}
-            <label className="cursor-pointer bg-[#F27D26] text-[#141414] font-bold px-4 py-1.5 hover:bg-opacity-90 transition-all flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider">
+            <label className="cursor-pointer bg-[#0071e3] text-white font-medium px-4 py-1.5 rounded-full hover:brightness-110 transition-all flex items-center gap-1.5 text-[13px] ml-1">
               <Upload size={12} />
               {files.length > 0 ? 'Add Files' : 'Upload Data'}
               <input type="file" accept=".csv,.dat,.txt" onChange={handleFileUploadIntoActiveBucket} className="hidden" multiple />
@@ -4130,9 +4149,9 @@ export default function App() {
       <div className="max-w-[1600px] mx-auto px-4 md:px-8 pt-5 pb-8">
       {/* Context bar — which slice of the sample is being worked on: the
           orientation, the file set inside it, and (for T-sweeps) the group. */}
-      <div className="mb-4 flex items-center gap-x-5 gap-y-2 flex-wrap bg-white/60 border border-[#141414]/10 px-4 py-2">
+      <div className="mb-4 flex items-center gap-x-6 gap-y-2 flex-wrap bg-white rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,.04)] px-5 py-2.5">
         <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-[9px] font-mono uppercase opacity-40 mr-1">Orientation</span>
+          <span className="text-[12px] text-[#86868b] mr-1">Orientation</span>
           {orientations.map(o => (
             <div key={o.id} className="group relative">
               {editingOrientationId === o.id ? (
@@ -4146,17 +4165,17 @@ export default function App() {
                     if (e.key === 'Enter') { const v = editOrientationLabelDraft.trim(); if (v) renameOrientation(o.id, v); setEditingOrientationId(null); }
                     if (e.key === 'Escape') setEditingOrientationId(null);
                   }}
-                  className="w-24 bg-white border border-[#F27D26] px-1.5 py-1 font-mono text-[10px] text-[#141414] focus:outline-none"
+                  className="w-24 bg-white border border-[#0071e3] px-1.5 py-1 tabular-nums text-[12px] text-[#1d1d1f] focus:outline-none"
                 />
               ) : (
                 <button
                   onDoubleClick={() => { setEditingOrientationId(o.id); setEditOrientationLabelDraft(o.label); }}
                   onClick={() => switchOrientation(o.id)}
                   title="더블클릭으로 이름 변경"
-                  className={`px-2.5 py-1 font-mono text-[10px] uppercase border transition-colors ${
+                  className={`px-3 py-1 text-[13px] rounded-full border transition-colors ${
                     o.id === activeOrientationId
-                      ? 'border-[#F27D26] text-[#141414] font-bold bg-[#F27D26]/15'
-                      : 'border-[#141414]/20 opacity-60 hover:opacity-100'
+                      ? 'border-[#1d1d1f] bg-[#1d1d1f] text-white'
+                      : 'border-black/10 text-[#1d1d1f]/70 hover:bg-black/5'
                   }`}
                 >
                   {o.label}
@@ -4186,11 +4205,11 @@ export default function App() {
                   if (e.key === 'Escape') { setOrientationLabelDraft(''); setShowAddOrientation(false); }
                 }}
                 placeholder="e.g. [001]"
-                className="w-24 bg-white border border-[#141414]/30 px-1.5 py-1 font-mono text-[10px] text-[#141414] focus:outline-none focus:border-[#F27D26]"
+                className="w-24 bg-white border border-black/30 px-1.5 py-1 tabular-nums text-[12px] text-[#1d1d1f] focus:outline-none focus:border-[#0071e3]"
               />
               <button
                 onClick={() => { addOrientation(orientationLabelDraft.trim()); setOrientationLabelDraft(''); setShowAddOrientation(false); }}
-                className="px-1.5 py-1 font-mono text-[9px] uppercase border border-[#F27D26] text-[#F27D26]"
+                className="px-1.5 py-1 tabular-nums text-[11px] border border-[#0071e3] text-[#0071e3]"
               >
                 <Check size={11} />
               </button>
@@ -4199,28 +4218,30 @@ export default function App() {
             <button
               onClick={() => { setOrientationLabelDraft(`Orientation ${orientations.length + 1}`); setShowAddOrientation(true); }}
               title="새 Orientation 추가"
-              className="px-1.5 py-1 border border-dashed border-[#141414]/25 opacity-50 hover:opacity-100 hover:border-[#141414]/50"
+              className="px-1.5 py-1 border border-dashed border-black/25 opacity-50 hover:opacity-100 hover:border-black/50"
             >
               <Plus size={12} />
             </button>
           )}
         </div>
 
-        <div className="flex items-center gap-1 pl-5 border-l border-[#141414]/10" title="이 orientation 안의 두 파일 세트 — 각도 스윕 / 온도 스윕은 서로 다른 파일·설정을 가짐">
-          <span className="text-[9px] font-mono uppercase opacity-40 mr-1">Files</span>
+        <div className="flex items-center gap-2 pl-6 border-l border-black/10" title="이 orientation 안의 두 파일 세트 — 각도 스윕 / 온도 스윕은 서로 다른 파일·설정을 가짐">
+          <span className="text-[12px] text-[#86868b]">Files</span>
+          <div className="flex bg-black/5 rounded-full p-0.5">
           {(['angle', 'temperature'] as const).map(m => (
             <button
               key={m}
               onClick={() => switchBucket(m)}
-              className={`px-2.5 py-1 font-mono text-[10px] uppercase border transition-colors ${
+              className={`px-3 py-1 text-[13px] rounded-full border transition-colors ${
                 activeBucket === m
-                  ? 'border-[#141414] bg-[#141414] text-[#E4E3E0]'
-                  : 'border-[#141414]/20 opacity-60 hover:opacity-100'
+                  ? 'border-transparent bg-white text-[#1d1d1f] font-medium shadow-[0_1px_3px_rgba(0,0,0,.12)]'
+                  : 'border-transparent text-[#1d1d1f]/60 hover:text-[#1d1d1f]'
               }`}
             >
               {m === 'angle' ? 'Angle Sweep' : 'Temp Sweep'}
             </button>
           ))}
+          </div>
         </div>
 
         {/* Temperature-sweep groups: several fixed-angle T-sweeps can live side
@@ -4229,8 +4250,8 @@ export default function App() {
           const currentOrientation = orientations.find(o => o.id === activeOrientationId);
           const groups = currentOrientation?.temperature.groups ?? [];
           return (
-            <div className="flex items-center gap-1.5 flex-wrap pl-5 border-l border-[#141414]/10">
-              <span className="text-[9px] font-mono uppercase opacity-40 mr-1">T-Sweep Set</span>
+            <div className="flex items-center gap-1.5 flex-wrap pl-5 border-l border-black/10">
+              <span className="text-[12px] text-[#86868b] mr-1">T-Sweep Set</span>
               {groups.map(g => (
                 <div key={g.id} className="group relative">
                   {editingTempGroupId === g.id ? (
@@ -4244,17 +4265,17 @@ export default function App() {
                         if (e.key === 'Enter') { const v = editTempGroupLabelDraft.trim(); if (v) renameTemperatureGroup(g.id, v); setEditingTempGroupId(null); }
                         if (e.key === 'Escape') setEditingTempGroupId(null);
                       }}
-                      className="w-20 bg-white border border-[#F27D26] px-1.5 py-1 font-mono text-[10px] text-[#141414] focus:outline-none"
+                      className="w-20 bg-white border border-[#0071e3] px-1.5 py-1 tabular-nums text-[12px] text-[#1d1d1f] focus:outline-none"
                     />
                   ) : (
                     <button
                       onDoubleClick={() => { setEditingTempGroupId(g.id); setEditTempGroupLabelDraft(g.label); }}
                       onClick={() => switchTemperatureGroup(g.id)}
                       title="더블클릭으로 이름 변경 (예: 각도)"
-                      className={`px-2.5 py-1 font-mono text-[10px] uppercase border transition-colors ${
+                      className={`px-3 py-1 text-[13px] rounded-full border transition-colors ${
                         g.id === activeTempGroupId
-                          ? 'border-[#F27D26] text-[#141414] font-bold bg-[#F27D26]/15'
-                          : 'border-[#141414]/20 opacity-60 hover:opacity-100'
+                          ? 'border-[#1d1d1f] bg-[#1d1d1f] text-white'
+                          : 'border-black/10 text-[#1d1d1f]/70 hover:bg-black/5'
                       }`}
                     >
                       {g.label}
@@ -4284,11 +4305,11 @@ export default function App() {
                       if (e.key === 'Escape') { setTempGroupLabelDraft(''); setShowAddTempGroup(false); }
                     }}
                     placeholder="e.g. 15deg"
-                    className="w-20 bg-white border border-[#141414]/30 px-1.5 py-1 font-mono text-[10px] text-[#141414] focus:outline-none focus:border-[#F27D26]"
+                    className="w-20 bg-white border border-black/30 px-1.5 py-1 tabular-nums text-[12px] text-[#1d1d1f] focus:outline-none focus:border-[#0071e3]"
                   />
                   <button
                     onClick={() => { addTemperatureGroup(tempGroupLabelDraft.trim()); setTempGroupLabelDraft(''); setShowAddTempGroup(false); }}
-                    className="px-1.5 py-1 font-mono text-[9px] uppercase border border-[#F27D26] text-[#F27D26]"
+                    className="px-1.5 py-1 tabular-nums text-[11px] border border-[#0071e3] text-[#0071e3]"
                   >
                     <Check size={11} />
                   </button>
@@ -4297,13 +4318,13 @@ export default function App() {
                 <button
                   onClick={() => { setTempGroupLabelDraft(`Group ${groups.length + 1}`); setShowAddTempGroup(true); }}
                   title="새 T-sweep set 추가 (다른 각도)"
-                  className="px-1.5 py-1 border border-dashed border-[#141414]/25 opacity-50 hover:opacity-100 hover:border-[#141414]/50"
+                  className="px-1.5 py-1 border border-dashed border-black/25 opacity-50 hover:opacity-100 hover:border-black/50"
                 >
                   <Plus size={12} />
                 </button>
               )}
               {groups.length === 0 && (
-                <span className="text-[9px] font-mono opacity-40 italic">+ 를 눌러 첫 T-sweep set을 추가하세요 (각도별로 여러 개 가능)</span>
+                <span className="text-[11px] tabular-nums opacity-40">+ 를 눌러 첫 T-sweep set을 추가하세요 (각도별로 여러 개 가능)</span>
               )}
             </div>
           );
@@ -4312,7 +4333,7 @@ export default function App() {
 
       {/* Tabs Navigation */}
       {files.length > 0 && (
-        <nav className="mb-6 flex items-center gap-0.5 overflow-x-auto no-scrollbar bg-white/60 border border-[#141414]/10 px-2">
+        <nav className="mb-6 flex items-center gap-1 overflow-x-auto no-scrollbar bg-white rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,.04)] px-2 py-2">
           {(() => {
             const angleOnlyTabs = new Set(['torque', 'landau', 'harmonics', 'symmetry', 'branch']);
             const allTabs: [string, string][] = [
@@ -4327,13 +4348,13 @@ export default function App() {
             return activeBucket === 'temperature' ? allTabs.filter(([id]) => !angleOnlyTabs.has(id)) : allTabs;
           })().map(([id, label]) => (
             <React.Fragment key={id}>
-              {(id === 'raw' || id === 'torque') && <span className="w-px h-4 bg-[#141414]/15 mx-2 shrink-0" />}
+              {(id === 'raw' || id === 'torque') && <span className="w-px h-4 bg-black/15 mx-2 shrink-0" />}
               <button
                 onClick={() => setActiveTab(id)}
-                className={`px-3.5 py-3 font-mono text-[11px] uppercase tracking-wide whitespace-nowrap transition-colors border-b-2 -mb-px ${
+                className={`px-3.5 py-1.5 text-[13px] rounded-full whitespace-nowrap transition-colors ${
                   activeTab === id
-                    ? 'border-[#F27D26] text-[#141414] font-bold'
-                    : 'border-transparent text-[#141414]/50 hover:text-[#141414]'
+                    ? 'bg-[#1d1d1f] text-white font-medium'
+                    : 'text-[#1d1d1f]/60 hover:text-[#1d1d1f] hover:bg-black/5'
                 }`}
               >
                 {label}
@@ -4365,22 +4386,22 @@ export default function App() {
               if (!displayVal) return null;
 
               return (
-                <div className="flex items-baseline gap-1.5 pl-3 border-l-2 border-[#F27D26]" title="BLM Position (Angle)">
-                  <span className="text-[9px] font-mono uppercase opacity-40">BLM</span>
-                  <span className="text-sm font-mono font-bold">
+                <div className="flex items-baseline gap-1.5 pl-3 border-l-2 border-[#0071e3]" title="BLM Position (Angle)">
+                  <span className="text-[11px] tabular-nums opacity-40">BLM</span>
+                  <span className="text-sm tabular-nums font-semibold">
                     {displayVal}{!displayVal.includes('°') && '°'}
                   </span>
                 </div>
               );
             })()}
-            <span className="text-[9px] font-mono uppercase tracking-widest opacity-30">File</span>
+            <span className="text-[11px] tabular-nums opacity-30">File</span>
             <select
               value={files.some(f => f.id === activeTab) ? activeTab : ''}
               onChange={(e) => { const id = e.target.value; if (id) { setActiveTab(id); setSelectedFileIndex(files.findIndex(f => f.id === id)); } }}
-              className={`bg-white border py-1.5 px-2 font-mono text-[11px] focus:outline-none focus:border-[#F27D26] cursor-pointer max-w-[180px] ${
+              className={`bg-white border rounded-full py-1 px-3 text-[13px] focus:outline-none focus:border-[#0071e3] cursor-pointer max-w-[180px] ${
                 files.some(f => f.id === activeTab)
-                  ? 'border-[#F27D26] text-[#141414] font-bold'
-                  : 'border-[#141414]/20 text-[#141414]/60'
+                  ? 'border-[#0071e3] text-[#1d1d1f] font-semibold'
+                  : 'border-black/20 text-[#1d1d1f]/60'
               }`}
             >
               <option value="">Detail…</option>
@@ -4400,7 +4421,7 @@ export default function App() {
             <button 
               onClick={handleProcessAll}
               disabled={isProcessing}
-              className="w-full bg-[#F27D26] text-[#141414] font-bold py-4 px-6 rounded-none hover:bg-opacity-90 transition-all flex items-center justify-center gap-2 font-mono text-sm uppercase tracking-wider mb-6 disabled:opacity-50 disabled:cursor-not-allowed shadow-[4px_4px_0px_0px_rgba(20,20,20,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
+              className="w-full bg-[#0071e3] text-white font-semibold py-4 px-6 rounded-lg hover:bg-opacity-90 transition-all flex items-center justify-center gap-2 tabular-nums text-sm mb-6 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm "
             >
               <RefreshCw size={18} className={isProcessing ? 'animate-spin' : ''} />
               Process All Files
@@ -4409,30 +4430,30 @@ export default function App() {
 
           {/* Which files go into the FFT batch */}
           {files.length > 0 && (
-            <section className="bg-white/50 p-4 border border-[#141414]/10">
+            <section className="bg-white p-4 border border-black/10 rounded-2xl">
               <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2 text-[#141414]">
-                  <Activity size={14} className="text-[#F27D26]" />
-                  <h2 className="font-serif italic font-bold text-sm">FFT Files</h2>
-                  <span className="text-[9px] font-mono opacity-40">{files.length - fftSkip.size}/{files.length}</span>
+                <div className="flex items-center gap-2 text-[#1d1d1f]">
+                  <Activity size={14} className="text-[#0071e3]" />
+                  <h2 className="font-semibold text-sm">FFT Files</h2>
+                  <span className="text-[11px] tabular-nums opacity-40">{files.length - fftSkip.size}/{files.length}</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <button onClick={() => setFftSkip(new Set())}
-                    className="px-1.5 py-0.5 font-mono text-[8px] uppercase border border-[#141414]/20 hover:bg-[#141414]/5">All</button>
+                    className="px-1.5 py-0.5 tabular-nums text-[12px] border border-black/20 hover:bg-black/5">All</button>
                   <button onClick={() => setFftSkip(new Set(files.map(f => f.id)))}
-                    className="px-1.5 py-0.5 font-mono text-[8px] uppercase border border-[#141414]/20 hover:bg-[#141414]/5">None</button>
+                    className="px-1.5 py-0.5 tabular-nums text-[12px] border border-black/20 hover:bg-black/5">None</button>
                   <button onClick={() => setFftSkip(new Set(files.filter(f => (oscScores[f.id] ?? 0) < OSC_SCORE_MIN).map(f => f.id)))}
                     title={`oscillation 점수 ${OSC_SCORE_MIN} 미만 자동 해제`}
-                    className="px-1.5 py-0.5 font-mono text-[8px] uppercase border border-[#F27D26] text-[#F27D26] hover:bg-[#F27D26]/10">Auto</button>
+                    className="px-1.5 py-0.5 tabular-nums text-[12px] border border-[#0071e3] text-[#0071e3] hover:bg-[#0071e3]/10">Auto</button>
                 </div>
               </div>
-              <div className="max-h-56 overflow-y-auto border border-[#141414]/10 bg-white">
+              <div className="max-h-56 overflow-y-auto border border-black/10 bg-white">
                 {filesByAngle.map(({ file, label }) => {
                   const included = !fftSkip.has(file.id);
                   const score = oscScores[file.id];
                   return (
                     <label key={file.id} title={file.name}
-                      className="flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-[#141414]/5 border-b border-[#141414]/5 last:border-b-0">
+                      className="flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-black/5 border-b border-black/5 last:border-b-0">
                       <input
                         type="checkbox"
                         checked={included}
@@ -4441,13 +4462,13 @@ export default function App() {
                           next.has(file.id) ? next.delete(file.id) : next.add(file.id);
                           return next;
                         })}
-                        className="accent-[#F27D26] shrink-0"
+                        className="accent-[#0071e3] shrink-0"
                       />
-                      <span className={`flex-1 truncate font-mono text-[11px] tabular-nums ${included ? '' : 'opacity-35 line-through'}`}>
+                      <span className={`flex-1 truncate tabular-nums text-[11px] tabular-nums ${included ? '' : 'opacity-35 line-through'}`}>
                         {label}
                       </span>
                       {score !== undefined && (
-                        <span className={`font-mono text-[9px] shrink-0 ${score >= OSC_SCORE_MIN ? 'text-[#F27D26] font-bold' : 'opacity-35'}`}>
+                        <span className={`tabular-nums text-[11px] shrink-0 ${score >= OSC_SCORE_MIN ? 'text-[#0071e3] font-semibold' : 'opacity-35'}`}>
                           {score >= 99.5 ? '99+' : score.toFixed(1)}
                         </span>
                       )}
@@ -4463,7 +4484,7 @@ export default function App() {
                   );
                 })}
               </div>
-              <p className="text-[9px] font-mono opacity-40 leading-relaxed mt-2">
+              <p className="text-[11px] tabular-nums opacity-40 leading-relaxed mt-2">
                 각도 옆 숫자는 oscillation 점수(1/B 스펙트럼의 최대 라인 ÷ 그 옆 노이즈).
                 업로드 시 {OSC_SCORE_MIN} 미만은 자동으로 해제됩니다.
                 해제된 파일은 FFT·피크·Branch에서 빠지고 Raw·Torque 탭에는 그대로 남습니다. 변경 후 Process All 을 다시 누르세요.
@@ -4473,19 +4494,19 @@ export default function App() {
           )}
 
           {appMode === 'sdh' && (
-            <section className="bg-white/50 p-6 border border-[#141414]/10">
-              <div className="flex items-center gap-2 mb-4 text-[#141414]">
+            <section className="bg-white p-6 border border-black/10 rounded-2xl">
+              <div className="flex items-center gap-2 mb-4 text-[#1d1d1f]">
                 <FileText size={18} />
-                <h2 className="font-serif italic font-bold text-lg">Columns</h2>
+                <h2 className="font-semibold text-lg">Columns</h2>
               </div>
               
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-mono uppercase opacity-60 mb-1">B (Field) Column</label>
+                  <label className="block text-xs tabular-nums opacity-60 mb-1">B (Field) Column</label>
                   <select 
                     value={selectedBColumn} 
                     onChange={(e) => setSelectedBColumn(e.target.value)}
-                    className="w-full bg-white border border-[#141414] p-2 font-mono text-sm focus:outline-none focus:ring-1 focus:ring-[#141414]"
+                    className="w-full bg-white border border-black/15 p-2 tabular-nums text-sm focus:outline-none focus:ring-1 focus:ring-[#0071e3]"
                   >
                     {columns.map(col => (
                       <option key={col} value={col}>{col}</option>
@@ -4495,14 +4516,14 @@ export default function App() {
 
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-mono uppercase opacity-60">R (Resistance) Column Prefix</label>
+                    <label className="block text-xs tabular-nums opacity-60">R (Resistance) Column Prefix</label>
                     {!prefixLocked && (
                       <button
                         type="button"
                         onClick={() => setPrefixLocked(true)}
                         disabled={!selectedPrefix}
                         title="이 prefix로 고정 — 앞으로 받는 파일도 이 컬럼만 사용, 선택 UI는 숨겨집니다"
-                        className="px-1.5 py-0.5 font-mono text-[9px] uppercase border border-[#141414]/20 hover:bg-[#141414]/5 flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
+                        className="px-1.5 py-0.5 tabular-nums text-[11px] border border-black/20 hover:bg-black/5 flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
                       >
                         <div className="w-2.5 h-2.5" />Lock
                       </button>
@@ -4510,13 +4531,13 @@ export default function App() {
                   </div>
 
                   {prefixLocked ? (
-                    <div className="flex items-center justify-between p-2 border border-[#F27D26] bg-[#F27D26]/5">
-                      <span className="font-mono text-sm font-bold text-[#F27D26]">{selectedPrefix}_*</span>
+                    <div className="flex items-center justify-between p-2 border border-[#0071e3] bg-[#0071e3]/5">
+                      <span className="tabular-nums text-sm font-semibold text-[#0071e3]">{selectedPrefix}_*</span>
                       <button
                         type="button"
                         onClick={() => setPrefixLocked(false)}
                         title="잠금 해제 — 새 파일 업로드 시 다시 자동 감지됩니다"
-                        className="px-1.5 py-0.5 font-mono text-[9px] uppercase border border-[#F27D26] text-[#F27D26] hover:bg-[#F27D26]/10 flex items-center gap-1"
+                        className="px-1.5 py-0.5 tabular-nums text-[11px] border border-[#0071e3] text-[#0071e3] hover:bg-[#0071e3]/10 flex items-center gap-1"
                       >
                         <Check size={10} />Locked
                       </button>
@@ -4527,7 +4548,7 @@ export default function App() {
                         <select
                           value={selectedPrefix}
                           onChange={(e) => setSelectedPrefix(e.target.value)}
-                          className="w-full bg-white border border-[#141414] p-2 font-mono text-sm focus:outline-none focus:ring-1 focus:ring-[#141414]"
+                          className="w-full bg-white border border-black/15 p-2 tabular-nums text-sm focus:outline-none focus:ring-1 focus:ring-[#0071e3]"
                         >
                           <option value="">Select Prefix...</option>
                           {prefixes.map(p => (
@@ -4535,7 +4556,7 @@ export default function App() {
                           ))}
                         </select>
                       ) : (
-                        <div className="text-[10px] font-mono opacity-40 italic p-2 border border-[#141414]/10 bg-white">
+                        <div className="text-[12px] tabular-nums opacity-40 p-2 border border-black/10 bg-white">
                           No prefixes detected (XX_# format)
                         </div>
                       )}
@@ -4543,16 +4564,16 @@ export default function App() {
                       {/* Optional: Show individual selection if no prefix is selected or available */}
                       {!selectedPrefix && (
                         <div className="mt-4">
-                          <label className="block text-xs font-mono uppercase opacity-60 mb-1">Individually Select R Columns</label>
-                          <div className="max-h-48 overflow-y-auto border border-[#141414] p-2 bg-white space-y-1">
+                          <label className="block text-xs tabular-nums opacity-60 mb-1">Individually Select R Columns</label>
+                          <div className="max-h-48 overflow-y-auto border border-black/15 p-2 bg-white space-y-1">
                             {columns.map(col => (
-                              <label key={col} className="flex items-center gap-2 text-xs font-mono cursor-pointer hover:bg-[#141414]/5 p-1">
+                              <label key={col} className="flex items-center gap-2 text-xs tabular-nums cursor-pointer hover:bg-black/5 p-1">
                                 <input
                                   type="checkbox"
                                   checked={selectedRColumns.includes(col)}
                                   onChange={() => toggleRColumn(col)}
                                   disabled={col === selectedBColumn}
-                                  className="accent-[#141414]"
+                                  className="accent-[#0071e3]"
                                 />
                                 <span className={col === selectedBColumn ? 'opacity-30' : ''}>{col}</span>
                               </label>
@@ -4567,37 +4588,37 @@ export default function App() {
             </section>
           )}
 
-          <section className="bg-white/50 p-6 border border-[#141414]/10">
-            <div className="flex items-center gap-2 mb-4 text-[#141414]">
+          <section className="bg-white p-6 border border-black/10 rounded-2xl">
+            <div className="flex items-center gap-2 mb-4 text-[#1d1d1f]">
               <Settings2 size={18} />
-              <h2 className="font-serif italic font-bold text-lg">Parameters</h2>
+              <h2 className="font-semibold text-lg">Parameters</h2>
             </div>
             
             <div className="space-y-6">
               {/* ROI Selection */}
               <div>
-                <label className="block text-[10px] font-mono uppercase opacity-60 mb-2">B-Field Range (ROI)</label>
+                <label className="block text-[12px] tabular-nums opacity-60 mb-2">B-Field Range (ROI)</label>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <span className="text-[10px] font-mono block mb-1">Min B (T):</span>
+                    <span className="text-[12px] tabular-nums block mb-1">Min B (T):</span>
                     <input 
                       type="number" 
                       step="0.1"
                       placeholder="Auto"
                       value={tempMinB} 
                       onChange={(e) => setTempMinB(e.target.value === '' ? '' : parseFloat(e.target.value))}
-                      className="w-full bg-white border border-[#141414] p-1 font-mono text-xs focus:outline-none"
+                      className="w-full bg-white border border-black/15 p-1 tabular-nums text-xs focus:outline-none"
                     />
                   </div>
                   <div>
-                    <span className="text-[10px] font-mono block mb-1">Max B (T):</span>
+                    <span className="text-[12px] tabular-nums block mb-1">Max B (T):</span>
                     <input 
                       type="number" 
                       step="0.1"
                       placeholder="Auto"
                       value={tempMaxB} 
                       onChange={(e) => setTempMaxB(e.target.value === '' ? '' : parseFloat(e.target.value))}
-                      className="w-full bg-white border border-[#141414] p-1 font-mono text-xs focus:outline-none"
+                      className="w-full bg-white border border-black/15 p-1 tabular-nums text-xs focus:outline-none"
                     />
                   </div>
                 </div>
@@ -4605,52 +4626,52 @@ export default function App() {
 
               {/* Background Subtraction */}
               <div>
-                <label className="block text-[10px] font-mono uppercase opacity-60 mb-2">Background Subtraction</label>
+                <label className="block text-[12px] tabular-nums opacity-60 mb-2">Background Subtraction</label>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-mono">Poly Degree:</span>
+                  <span className="text-xs tabular-nums">Poly Degree:</span>
                   <input 
                     type="number" 
                     min="1" 
                     max="10" 
                     value={tempPolyDegree} 
                     onChange={(e) => setTempPolyDegree(parseInt(e.target.value) || 1)}
-                    className="w-16 bg-white border border-[#141414] p-1 font-mono text-xs focus:outline-none"
+                    className="w-16 bg-white border border-black/15 p-1 tabular-nums text-xs focus:outline-none"
                   />
                 </div>
               </div>
 
               {/* Spike Removal */}
-              <div className="pt-4 border-t border-[#141414]/5">
+              <div className="pt-4 border-t border-black/5">
                 <label className="flex items-center gap-2 cursor-pointer mb-2">
                   <input 
                     type="checkbox" 
                     checked={tempSpikeRemoval} 
                     onChange={(e) => setTempSpikeRemoval(e.target.checked)}
-                    className="accent-[#141414]"
+                    className="accent-[#0071e3]"
                   />
-                  <span className="text-[10px] font-mono uppercase opacity-60">Spike Removal</span>
+                  <span className="text-[12px] tabular-nums opacity-60">Spike Removal</span>
                 </label>
                 {tempSpikeRemoval && (
                   <div className="space-y-2 pl-5">
                     <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-mono">Kernel:</span>
+                      <span className="text-[12px] tabular-nums">Kernel:</span>
                       <input 
                         type="number" 
                         min="3" 
                         step="2"
                         value={tempSpikeKernel} 
                         onChange={(e) => setTempSpikeKernel(parseInt(e.target.value) || 3)}
-                        className="w-12 bg-white border border-[#141414] p-1 font-mono text-[10px]"
+                        className="w-12 bg-white border border-black/15 p-1 tabular-nums text-[12px]"
                       />
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-mono">Threshold:</span>
+                      <span className="text-[12px] tabular-nums">Threshold:</span>
                       <input 
                         type="number" 
                         step="0.1"
                         value={tempSpikeThreshold} 
                         onChange={(e) => setTempSpikeThreshold(parseFloat(e.target.value) || 1)}
-                        className="w-12 bg-white border border-[#141414] p-1 font-mono text-[10px]"
+                        className="w-12 bg-white border border-black/15 p-1 tabular-nums text-[12px]"
                       />
                     </div>
                   </div>
@@ -4658,39 +4679,39 @@ export default function App() {
               </div>
 
               {/* Smoothing */}
-              <div className="pt-4 border-t border-[#141414]/5">
+              <div className="pt-4 border-t border-black/5">
                 <label className="flex items-center gap-2 cursor-pointer mb-2">
                   <input 
                     type="checkbox" 
                     checked={tempSmoothing} 
                     onChange={(e) => setTempSmoothing(e.target.checked)}
-                    className="accent-[#141414]"
+                    className="accent-[#0071e3]"
                   />
-                  <span className="text-[10px] font-mono uppercase opacity-60">Smoothing</span>
+                  <span className="text-[12px] tabular-nums opacity-60">Smoothing</span>
                 </label>
                 {tempSmoothing && (
                   <div className="flex justify-between items-center pl-5">
-                    <span className="text-[10px] font-mono">Window:</span>
+                    <span className="text-[12px] tabular-nums">Window:</span>
                     <input 
                       type="number" 
                       min="3" 
                       value={tempSmoothWindow} 
                       onChange={(e) => setTempSmoothWindow(parseInt(e.target.value) || 3)}
-                      className="w-12 bg-white border border-[#141414] p-1 font-mono text-[10px]"
+                      className="w-12 bg-white border border-black/15 p-1 tabular-nums text-[12px]"
                     />
                   </div>
                 )}
               </div>
 
               {/* FFT Settings */}
-              <div className="pt-4 border-t border-[#141414]/5 space-y-3">
-                <label className="block text-[10px] font-mono uppercase opacity-60">FFT & Windowing</label>
+              <div className="pt-4 border-t border-black/5 space-y-3">
+                <label className="block text-[12px] tabular-nums opacity-60">FFT & Windowing</label>
                 <div>
-                  <label className="block text-[10px] font-mono mb-1">Points:</label>
+                  <label className="block text-[12px] tabular-nums mb-1">Points:</label>
                   <select 
                     value={tempInterpPoints} 
                     onChange={(e) => setTempInterpPoints(parseInt(e.target.value))}
-                    className="w-full bg-white border border-[#141414] p-1 font-mono text-xs"
+                    className="w-full bg-white border border-black/15 p-1 tabular-nums text-xs"
                   >
                     {[256, 512, 1024, 2048, 4096, 8192].map(p => (
                       <option key={p} value={p}>{p}</option>
@@ -4698,11 +4719,11 @@ export default function App() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-mono mb-1">Window:</label>
+                  <label className="block text-[12px] tabular-nums mb-1">Window:</label>
                   <select 
                     value={tempWindowType} 
                     onChange={(e) => setTempWindowType(e.target.value)}
-                    className="w-full bg-white border border-[#141414] p-1 font-mono text-xs"
+                    className="w-full bg-white border border-black/15 p-1 tabular-nums text-xs"
                   >
                     {['hanning', 'hamming', 'bartlett', 'blackman', 'kaiser', 'flat'].map(w => (
                       <option key={w} value={w}>{w.charAt(0).toUpperCase() + w.slice(1)}</option>
@@ -4710,15 +4731,15 @@ export default function App() {
                   </select>
                 </div>
 
-                <div className="pt-2 border-t border-[#141414]/5">
+                <div className="pt-2 border-t border-black/5">
                   <label className="flex items-center gap-2 cursor-pointer mb-1">
                     <input 
                       type="checkbox" 
                       checked={tempUseTargetInterval} 
                       onChange={(e) => setTempUseTargetInterval(e.target.checked)}
-                      className="accent-[#141414]"
+                      className="accent-[#0071e3]"
                     />
-                    <span className="text-[10px] font-mono uppercase opacity-60">Target Freq Interval</span>
+                    <span className="text-[12px] tabular-nums opacity-60">Target Freq Interval</span>
                   </label>
                   {tempUseTargetInterval && (
                     <div className="flex items-center gap-2 pl-5">
@@ -4728,28 +4749,28 @@ export default function App() {
                         min="0.01"
                         value={tempTargetFreqInterval} 
                         onChange={(e) => setTempTargetFreqInterval(parseFloat(e.target.value) || 0.1)}
-                        className="w-full bg-white border border-[#141414] p-1 font-mono text-xs"
+                        className="w-full bg-white border border-black/15 p-1 tabular-nums text-xs"
                       />
-                      <span className="text-[10px] font-mono opacity-50">T</span>
+                      <span className="text-[12px] tabular-nums opacity-50">T</span>
                     </div>
                   )}
                 </div>
 
-                <div className="space-y-2 pt-2 border-t border-[#141414]/5">
+                <div className="space-y-2 pt-2 border-t border-black/5">
                   <div className="flex items-center justify-between">
-                    <label className="block text-[10px] font-mono uppercase opacity-60">Peak Threshold</label>
+                    <label className="block text-[12px] tabular-nums opacity-60">Peak Threshold</label>
                     <button
                       onClick={() => setAutoThreshold(v => !v)}
-                      className={`px-2 py-0.5 font-mono text-[8px] uppercase border transition-all ${autoThreshold ? 'border-[#F27D26] text-[#F27D26] bg-[#F27D26]/10 font-bold' : 'border-[#141414]/20 opacity-50 hover:opacity-100'}`}
+                      className={`px-2 py-0.5 tabular-nums text-[12px] border transition-all ${autoThreshold ? 'border-[#0071e3] text-[#0071e3] bg-[#0071e3]/10 font-semibold' : 'border-black/20 opacity-50 hover:opacity-100'}`}
                     >{autoThreshold ? 'Auto ✓' : 'Auto'}</button>
                   </div>
                   {autoThreshold ? (
-                    <p className="text-[9px] font-mono opacity-40 leading-relaxed pt-1">
+                    <p className="text-[11px] tabular-nums opacity-40 leading-relaxed pt-1">
                       Auto — local noise floor per file: the spectrum is split into blocks and each gets median + 3.5σ (σ from second differences), so the low-frequency background skirt no longer sets the bar for the whole spectrum. Deliberately loose so weak branches survive at every angle. Toggle off for manual frequency-dependent thresholds.
                     </p>
                   ) : (
                     <div className="space-y-2 pt-1">
-                      <div className="grid grid-cols-2 gap-2 text-[9px] font-mono opacity-50 uppercase mb-1">
+                      <div className="grid grid-cols-2 gap-2 text-[11px] tabular-nums opacity-50 mb-1">
                         <span>Max Freq (T)</span>
                         <span>Threshold (%)</span>
                       </div>
@@ -4766,7 +4787,7 @@ export default function App() {
                                 newSegs[idx].limit = parseFloat(e.target.value) || 0;
                                 setTempFreqThresholds(newSegs);
                               }}
-                              className={`w-full bg-white border border-[#141414] p-1 font-mono text-[10px] ${idx === 3 ? 'opacity-50' : ''}`}
+                              className={`w-full bg-white border border-black/15 p-1 tabular-nums text-[12px] ${idx === 3 ? 'opacity-50' : ''}`}
                             />
                           </div>
                           <div className="flex-1">
@@ -4778,7 +4799,7 @@ export default function App() {
                                 newSegs[idx].threshold = parseFloat(e.target.value) || 0;
                                 setTempFreqThresholds(newSegs);
                               }}
-                              className="w-full bg-white border border-[#141414] p-1 font-mono text-[10px]"
+                              className="w-full bg-white border border-black/15 p-1 tabular-nums text-[12px]"
                             />
                           </div>
                         </div>
@@ -4787,36 +4808,36 @@ export default function App() {
                   )}
                 </div>
 
-                <div className="space-y-2 pt-2 border-t border-[#141414]/5">
-                  <label className="block text-[10px] font-mono uppercase opacity-60">Branch Analysis</label>
+                <div className="space-y-2 pt-2 border-t border-black/5">
+                  <label className="block text-[12px] tabular-nums opacity-60">Branch Analysis</label>
                   <div className="space-y-2">
                     <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-mono">Tolerance (T):</span>
+                      <span className="text-[12px] tabular-nums">Tolerance (T):</span>
                       <input 
                         type="number" 
                         value={tempBranchTolerance} 
                         onChange={(e) => setTempBranchTolerance(parseFloat(e.target.value) || 0)}
-                        className="w-16 bg-white border border-[#141414] p-1 font-mono text-[10px]"
+                        className="w-16 bg-white border border-black/15 p-1 tabular-nums text-[12px]"
                       />
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-mono">Min Peaks:</span>
+                      <span className="text-[12px] tabular-nums">Min Peaks:</span>
                       <input 
                         type="number" 
                         min="2"
                         value={tempMinPeaksPerBranch} 
                         onChange={(e) => setTempMinPeaksPerBranch(parseInt(e.target.value) || 2)}
-                        className="w-16 bg-white border border-[#141414] p-1 font-mono text-[10px]"
+                        className="w-16 bg-white border border-black/15 p-1 tabular-nums text-[12px]"
                       />
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-mono">Min Peak Width:</span>
+                      <span className="text-[12px] tabular-nums">Min Peak Width:</span>
                       <input 
                         type="number" 
                         min="1"
                         value={tempMinPeakWidth} 
                         onChange={(e) => setTempMinPeakWidth(parseInt(e.target.value) || 1)}
-                        className="w-16 bg-white border border-[#141414] p-1 font-mono text-[10px]"
+                        className="w-16 bg-white border border-black/15 p-1 tabular-nums text-[12px]"
                       />
                     </div>
                   </div>
@@ -4824,38 +4845,38 @@ export default function App() {
 
                 <button
                   onClick={commitStagedSettings}
-                  className="w-full bg-[#141414] text-[#E4E3E0] py-2 font-mono text-[10px] uppercase tracking-wider hover:bg-opacity-80 transition-all"
+                  className="w-full bg-white text-[#1d1d1f] py-2 tabular-nums text-[12px] hover:bg-opacity-80 transition-all"
                 >
                   Apply All Settings
                 </button>
-                <p className="text-[9px] font-mono opacity-40 mt-1.5 leading-relaxed">
+                <p className="text-[11px] tabular-nums opacity-40 mt-1.5 leading-relaxed">
                   위 설정을 바꾼 뒤에는 Apply 를 먼저 누르고 Process All 을 실행하세요.
                 </p>
               </div>
 
               {/* Complex Analysis */}
-              <div className="pt-4 border-t border-[#141414]/5">
+              <div className="pt-4 border-t border-black/5">
                 <label className="flex items-center gap-2 cursor-pointer mb-2">
                   <input 
                     type="checkbox" 
                     checked={tempComplexMode} 
                     onChange={(e) => setTempComplexMode(e.target.checked)}
-                    className="accent-[#141414]"
+                    className="accent-[#0071e3]"
                   />
-                  <span className="text-[10px] font-mono uppercase opacity-60">Complex Mode (In+Out)</span>
+                  <span className="text-[12px] tabular-nums opacity-60">Complex Mode (In+Out)</span>
                 </label>
                 {tempComplexMode && (
                   <div className="space-y-3 pl-5">
                     <div className="flex flex-col gap-1">
                       <div className="flex justify-between items-center">
-                        <span className="text-[10px] font-mono">Phase: {tempPhase}°</span>
+                        <span className="text-[12px] tabular-nums">Phase: {tempPhase}°</span>
                         <button 
                           onClick={() => {
                             // findAutoPhase logic needs to be adapted for temp states if needed, 
                             // but for now we'll just let it set the tempPhase
                             findAutoPhase(); 
                           }}
-                          className="text-[10px] font-mono bg-[#141414] text-[#E4E3E0] px-2 py-0.5 hover:bg-opacity-80"
+                          className="text-[12px] tabular-nums bg-white text-[#1d1d1f] px-2 py-0.5 hover:bg-opacity-80"
                         >
                           Auto
                         </button>
@@ -4867,7 +4888,7 @@ export default function App() {
                         step="5"
                         value={tempPhase} 
                         onChange={(e) => setTempPhase(parseInt(e.target.value))}
-                        className="w-full accent-[#141414]"
+                        className="w-full accent-[#0071e3]"
                       />
                     </div>
                   </div>
@@ -4876,47 +4897,47 @@ export default function App() {
             </div>
           </section>
 
-          <section className="bg-white/50 p-6 border border-[#141414]/10">
-            <div className="flex items-center gap-2 mb-4 text-[#141414]">
+          <section className="bg-white p-6 border border-black/10 rounded-2xl">
+            <div className="flex items-center gap-2 mb-4 text-[#1d1d1f]">
               <Activity size={18} />
-              <h2 className="font-serif italic font-bold text-lg">FFT Display Settings</h2>
+              <h2 className="font-semibold text-lg">FFT Display Settings</h2>
             </div>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <label className="text-[10px] font-mono uppercase opacity-60">Auto Frequency Range</label>
+                <label className="text-[12px] tabular-nums opacity-60">Auto Frequency Range</label>
                 <input 
                   type="checkbox" 
                   checked={autoFFTRange} 
                   onChange={(e) => setAutoFFTRange(e.target.checked)}
-                  className="accent-[#F27D26]"
+                  className="accent-[#0071e3]"
                 />
               </div>
               {!autoFFTRange && (
                 <div>
-                  <label className="block text-[10px] font-mono uppercase opacity-60 mb-1">Max Frequency (T)</label>
+                  <label className="block text-[12px] tabular-nums opacity-60 mb-1">Max Frequency (T)</label>
                   <input 
                     type="number" 
                     value={manualMaxFreq} 
                     onChange={(e) => setManualMaxFreq(Number(e.target.value))}
-                    className="w-full bg-white border border-[#141414] p-1 font-mono text-xs"
+                    className="w-full bg-white border border-black/15 p-1 tabular-nums text-xs"
                   />
                 </div>
               )}
             </div>
           </section>
 
-          <section className="bg-white/50 p-6 border border-[#141414]/10">
-            <div className="flex items-center gap-2 mb-4 text-[#141414]">
+          <section className="bg-white p-6 border border-black/10 rounded-2xl">
+            <div className="flex items-center gap-2 mb-4 text-[#1d1d1f]">
               <Settings2 size={18} />
-              <h2 className="font-serif italic font-bold text-lg">BLM / Steps Settings</h2>
+              <h2 className="font-semibold text-lg">BLM / Steps Settings</h2>
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-[10px] font-mono uppercase opacity-60 mb-1">X-Axis Mode</label>
+                <label className="block text-[12px] tabular-nums opacity-60 mb-1">X-Axis Mode</label>
                 <select 
                   value={blmMode} 
                   onChange={(e) => setBlmMode(e.target.value as 'metadata' | 'step')}
-                  className="w-full bg-white border border-[#141414] p-1 font-mono text-xs"
+                  className="w-full bg-white border border-black/15 p-1 tabular-nums text-xs"
                 >
                   <option value="metadata">BLM (Metadata)</option>
                   <option value="step">BLM (Steps)</option>
@@ -4925,30 +4946,30 @@ export default function App() {
               <div className="flex items-center gap-2 py-2">
                 <button 
                   onClick={() => setReadAngleFromTitle(!readAngleFromTitle)}
-                  className={`flex-1 flex items-center justify-between p-2 border border-[#141414] font-mono text-xs transition-colors ${readAngleFromTitle ? 'bg-[#141414] text-white' : 'bg-white text-[#141414]'}`}
+                  className={`flex-1 flex items-center justify-between p-2 border border-black/15 tabular-nums text-xs transition-colors ${readAngleFromTitle ? 'bg-[#0071e3]/10 text-[#0071e3] border-[#0071e3]/40' : 'bg-white text-[#1d1d1f]'}`}
                 >
                   <span>Read Angle from Title</span>
                   {readAngleFromTitle ? <Check size={14} /> : <div className="w-3.5 h-3.5" />}
                 </button>
               </div>
               <div>
-                <label className="block text-[10px] font-mono uppercase opacity-60 mb-1">1° = [ ] BLM units</label>
+                <label className="block text-[12px] tabular-nums opacity-60 mb-1">1° = [ ] BLM units</label>
                 <input 
                   type="number" 
                   step="0.01"
                   value={blmPerDegree} 
                   onChange={(e) => setBlmPerDegree(parseFloat(e.target.value) || 1.0)}
-                  className="w-full bg-white border border-[#141414] p-1 font-mono text-xs"
+                  className="w-full bg-white border border-black/15 p-1 tabular-nums text-xs"
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-mono uppercase opacity-60 mb-1">BLM Offset</label>
+                <label className="block text-[12px] tabular-nums opacity-60 mb-1">BLM Offset</label>
                 <input 
                   type="number" 
                   step="0.1"
                   value={blmOffset} 
                   onChange={(e) => setBlmOffset(parseFloat(e.target.value) || 0)}
-                  className="w-full bg-white border border-[#141414] p-1 font-mono text-xs"
+                  className="w-full bg-white border border-black/15 p-1 tabular-nums text-xs"
                 />
               </div>
             </div>
@@ -4968,24 +4989,24 @@ export default function App() {
           {activeTab === 'dashboard' ? (
             <div className="space-y-12">
               {files.length > 0 && (
-                <div className="bg-[#141414] text-[#E4E3E0] p-8 border border-[#E4E3E0]/10">
+                <div className="bg-white text-[#1d1d1f] p-8 border border-black/10 rounded-2xl">
                   <div className="flex justify-between items-center">
                     <div className="flex items-center gap-3">
-                      <Activity size={24} className="text-[#F27D26]" />
-                      <h3 className="text-2xl font-serif italic font-bold">Multi-File Analysis Summary</h3>
+                      <Activity size={24} className="text-[#0071e3]" />
+                      <h3 className="text-2xl font-semibold">Multi-File Analysis Summary</h3>
                     </div>
                     <div className="flex items-center gap-6">
                       {prefixes.length > 0 && (
                         <div className="flex flex-col items-end">
-                          <span className="text-[9px] font-mono uppercase opacity-40 mb-1">Column Prefix (XX_#)</span>
+                          <span className="text-[11px] tabular-nums opacity-40 mb-1">Column Prefix (XX_#)</span>
                           <select 
                             value={selectedPrefix}
                             onChange={(e) => setSelectedPrefix(e.target.value)}
-                            className="bg-transparent border-b border-[#E4E3E0]/20 text-[#E4E3E0] font-mono text-xs focus:outline-none focus:border-[#F27D26] transition-colors cursor-pointer"
+                            className="bg-transparent border-b border-black/20 text-[#1d1d1f] tabular-nums text-xs focus:outline-none focus:border-[#0071e3] transition-colors cursor-pointer"
                           >
-                            <option value="" className="bg-[#141414]">All Files</option>
+                            <option value="" className="bg-white">All Files</option>
                             {prefixes.map(p => (
-                              <option key={p} value={p} className="bg-[#141414]">{p}</option>
+                              <option key={p} value={p} className="bg-white">{p}</option>
                             ))}
                           </select>
                         </div>
@@ -4993,7 +5014,7 @@ export default function App() {
                       <button 
                         onClick={handleProcessAll}
                         disabled={isProcessing}
-                        className="flex items-center gap-2 bg-[#F27D26] hover:bg-[#F27D26]/80 text-white px-4 py-2 font-mono text-[10px] uppercase tracking-widest transition-all disabled:opacity-50"
+                        className="flex items-center gap-2 bg-[#0071e3] hover:bg-[#0071e3]/80 text-white px-4 py-2 tabular-nums text-[12px] transition-all disabled:opacity-50"
                       >
                         <RefreshCw size={14} className={isProcessing ? 'animate-spin' : ''} />
                         {isProcessing ? 'Processing...' : 'Process All'}
@@ -5037,7 +5058,7 @@ export default function App() {
                             const csv = headers + "\n" + rows.join("\n");
                             saveText(csv, `fft_assemble_summary.csv`, 'text/csv');
                           }}
-                          className="flex items-center gap-2 bg-[#E4E3E0] hover:bg-[#E4E3E0]/80 text-[#141414] px-4 py-2 font-mono text-[10px] uppercase tracking-widest transition-all"
+                          className="flex items-center gap-2 bg-[#f5f5f7] hover:bg-black/5 text-[#1d1d1f] px-4 py-2 tabular-nums text-[12px] transition-all"
                         >
                           <Download size={14} />
                           Export FFT Assemble
@@ -5049,20 +5070,20 @@ export default function App() {
               )}
 
               {batchSummary.length === 0 && !isProcessing && (
-                <div className="h-[500px] border-2 border-dashed border-[#141414]/20 flex flex-col items-center justify-center text-[#141414]/50 bg-white/30 gap-4 px-8 text-center">
+                <div className="h-[500px] border-2 border-dashed border-black/20 flex flex-col items-center justify-center text-[#1d1d1f]/50 bg-white gap-4 px-8 text-center">
                   <Activity size={48} strokeWidth={1} />
-                  <p className="font-serif italic text-xl text-[#141414]">Ready to analyze — {files.length} file{files.length !== 1 ? 's' : ''} loaded</p>
+                  <p className="text-xl text-[#1d1d1f]">Ready to analyze — {files.length} file{files.length !== 1 ? 's' : ''} loaded</p>
                   <button
                     onClick={handleProcessAll}
-                    className="bg-[#F27D26] text-[#141414] font-bold py-3 px-8 hover:bg-opacity-90 transition-all flex items-center gap-2 font-mono text-sm uppercase tracking-wider shadow-[4px_4px_0px_0px_rgba(20,20,20,1)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
+                    className="bg-[#0071e3] text-white font-semibold py-3 px-8 hover:bg-opacity-90 transition-all flex items-center gap-2 tabular-nums text-sm shadow-sm "
                   >
                     <RefreshCw size={18} />
                     Process All Files
                   </button>
                   {(!selectedPrefix && selectedRColumns.length === 0) ? (
-                    <p className="text-[11px] font-mono text-[#F27D26]">⚠ No R column selected — pick a prefix or column under “Columns” in the sidebar first.</p>
+                    <p className="text-[11px] tabular-nums text-[#0071e3]">⚠ No R column selected — pick a prefix or column under “Columns” in the sidebar first.</p>
                   ) : (
-                    <p className="text-[10px] font-mono uppercase tracking-widest opacity-40">
+                    <p className="text-[12px] tabular-nums opacity-40">
                       Column: {selectedPrefix ? `${selectedPrefix}_*` : selectedRColumns.join(', ')} · B-range {minB}–{maxB} T
                     </p>
                   )}
@@ -5070,36 +5091,36 @@ export default function App() {
               )}
 
               {isProcessing && (
-                <div className="h-[500px] flex flex-col items-center justify-center bg-white/30 border border-[#141414]/5">
-                  <RefreshCw className="animate-spin text-[#F27D26] mb-4" size={48} />
-                  <p className="font-mono text-sm uppercase tracking-widest animate-pulse">Analyzing all files...</p>
+                <div className="h-[500px] flex flex-col items-center justify-center bg-white border border-black/5">
+                  <RefreshCw className="animate-spin text-[#0071e3] mb-4" size={48} />
+                  <p className="tabular-nums text-sm animate-pulse">Analyzing all files...</p>
                 </div>
               )}
 
               {batchSummary.length > 0 && !isProcessing && (
                 <div className="grid grid-cols-1 gap-12">
                   {/* Spectral Overview Section for All Files */}
-                  <div className="bg-[#141414] text-[#E4E3E0] p-8 border border-[#E4E3E0]/10">
+                  <div className="bg-white text-[#1d1d1f] p-8 border border-black/10 rounded-2xl">
                     <div className="flex items-center gap-3 mb-8">
-                      <Activity size={20} className="text-[#F27D26]" />
-                      <h4 className="text-sm font-mono uppercase tracking-widest">Global Spectral Overview (All Files)</h4>
+                      <Activity size={20} className="text-[#0071e3]" />
+                      <h4 className="text-sm tabular-nums">Global Spectral Overview (All Files)</h4>
                     </div>
                     
                     <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
                       {/* Raw Data Overlay */}
-                      <div className="h-[300px] bg-white/5 p-4 border border-white/10">
-                        <h5 className="text-[10px] font-mono uppercase opacity-60 mb-4 text-center">Raw Data (R vs B)</h5>
+                      <div className="h-[300px] bg-black/5 p-4 border border-black/10">
+                        <h5 className="text-[12px] tabular-nums opacity-60 mb-4 text-center">Raw Data (R vs B)</h5>
                         <ResponsiveContainer width="100%" height="90%">
                           <LineChart margin={{ bottom: 10, left: 10 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#333" />
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5ea" />
                             <XAxis 
                               dataKey="b" 
                               type="number" 
                               domain={['auto', 'auto']}
-                              tick={{ fontSize: 8, fontFamily: 'monospace', fill: '#E4E3E0' }}
+                              tick={{ fontSize: 8, fontFamily: 'inherit', fill: '#6e6e73' }}
                             />
-                            <YAxis tick={{ fontSize: 8, fontFamily: 'monospace', fill: '#E4E3E0' }} />
-                            <Tooltip contentStyle={{ backgroundColor: '#141414', border: '1px solid #E4E3E0', fontSize: '8px', color: '#E4E3E0' }} />
+                            <YAxis tick={{ fontSize: 8, fontFamily: 'inherit', fill: '#6e6e73' }} />
+                            <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '8px', color: '#1d1d1f' }} />
                             {allRawSeries.slice(0, 20).map((s, idx) => (
                               <Line 
                                 key={idx}
@@ -5114,23 +5135,23 @@ export default function App() {
                             ))}
                           </LineChart>
                         </ResponsiveContainer>
-                        {allRawSeries.length > 20 && <p className="text-[8px] text-center opacity-40 mt-1">Showing first 20 series</p>}
+                        {allRawSeries.length > 20 && <p className="text-[12px] text-center opacity-40 mt-1">Showing first 20 series</p>}
                       </div>
 
                       {/* Oscillatory Data Overlay */}
-                      <div className="h-[300px] bg-white/5 p-4 border border-white/10">
-                        <h5 className="text-[10px] font-mono uppercase opacity-60 mb-4 text-center">Oscillatory Data (ΔR vs 1/B)</h5>
+                      <div className="h-[300px] bg-black/5 p-4 border border-black/10">
+                        <h5 className="text-[12px] tabular-nums opacity-60 mb-4 text-center">Oscillatory Data (ΔR vs 1/B)</h5>
                         <ResponsiveContainer width="100%" height="90%">
                           <LineChart margin={{ bottom: 10, left: 10 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#333" />
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5ea" />
                             <XAxis 
                               dataKey="invB" 
                               type="number" 
                               domain={['auto', 'auto']}
-                              tick={{ fontSize: 8, fontFamily: 'monospace', fill: '#E4E3E0' }}
+                              tick={{ fontSize: 8, fontFamily: 'inherit', fill: '#6e6e73' }}
                             />
-                            <YAxis tick={{ fontSize: 8, fontFamily: 'monospace', fill: '#E4E3E0' }} />
-                            <Tooltip contentStyle={{ backgroundColor: '#141414', border: '1px solid #E4E3E0', fontSize: '8px', color: '#E4E3E0' }} />
+                            <YAxis tick={{ fontSize: 8, fontFamily: 'inherit', fill: '#6e6e73' }} />
+                            <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '8px', color: '#1d1d1f' }} />
                             {allRawSeries.slice(0, 20).map((s, idx) => (
                               <Line 
                                 key={idx}
@@ -5148,20 +5169,20 @@ export default function App() {
                       </div>
 
                       {/* FFT Overlay */}
-                      <div className="h-[300px] bg-white/5 p-4 border border-white/10">
-                        <h5 className="text-[10px] font-mono uppercase opacity-60 mb-4 text-center">FFT Results (Amp vs Freq)</h5>
+                      <div className="h-[300px] bg-black/5 p-4 border border-black/10">
+                        <h5 className="text-[12px] tabular-nums opacity-60 mb-4 text-center">FFT Results (Amp vs Freq)</h5>
                         <ResponsiveContainer width="100%" height="90%">
                           <LineChart margin={{ bottom: 10, left: 10 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#333" />
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5ea" />
                             <XAxis
                               dataKey="frequency"
                               type="number"
                               domain={[0, autoFFTRange ? globalSuggestedMaxFreq : manualMaxFreq]}
                               allowDataOverflow={true}
-                              tick={{ fontSize: 8, fontFamily: 'monospace', fill: '#E4E3E0' }}
+                              tick={{ fontSize: 8, fontFamily: 'inherit', fill: '#6e6e73' }}
                             />
-                            <YAxis tick={{ fontSize: 8, fontFamily: 'monospace', fill: '#E4E3E0' }} />
-                            <Tooltip contentStyle={{ backgroundColor: '#141414', border: '1px solid #E4E3E0', fontSize: '8px', color: '#E4E3E0' }} />
+                            <YAxis tick={{ fontSize: 8, fontFamily: 'inherit', fill: '#6e6e73' }} />
+                            <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '8px', color: '#1d1d1f' }} />
                             {assembleChartData.slice(0, 20).map((s, idx) => (
                               <Line
                                 key={idx}
@@ -5181,56 +5202,56 @@ export default function App() {
                   </div>
 
                   {/* Summary Charts */}
-                  <div className="bg-[#141414] text-[#E4E3E0] p-8 border border-[#E4E3E0]/10 animate-in fade-in zoom-in duration-500">
+                  <div className="bg-white text-[#1d1d1f] p-8 border border-black/10 animate-in fade-in zoom-in duration-500 rounded-2xl">
                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 mb-12">
-                      <div className="h-[450px] w-full bg-[#141414]/50 p-6 border border-[#E4E3E0]/5">
+                      <div className="h-[450px] w-full bg-black/50 p-6 border border-black/5">
                         <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-                          <h4 className="text-xs font-mono uppercase opacity-60">All Detected Frequencies vs BLM</h4>
+                          <h4 className="text-xs tabular-nums opacity-60">All Detected Frequencies vs BLM</h4>
                           <div className="flex items-center gap-1.5">
-                            <span className="text-[8px] font-mono uppercase opacity-40">Live Range:</span>
+                            <span className="text-[12px] tabular-nums opacity-40">Live Range:</span>
                             <input type="number" step="0.1" value={dashLiveRange.minDraft}
                               ref={wheelStepRef(dashLiveRange.minDraft, dashLiveRange.changeMin)}
                               onChange={(e) => dashLiveRange.changeMin(Number(e.target.value))}
                               title="Process All 없이 즉시 미리보기할 Min B (스크롤로 조절 가능)"
-                              className="w-14 bg-[#141414] border border-[#E4E3E0]/30 p-0.5 font-mono text-[9px] text-[#E4E3E0]" />
-                            <span className="opacity-30 text-[9px]">–</span>
+                              className="w-14 bg-white border border-black/30 p-0.5 tabular-nums text-[11px] text-[#1d1d1f]" />
+                            <span className="opacity-30 text-[11px]">–</span>
                             <input type="number" step="0.1" value={dashLiveRange.maxDraft}
                               ref={wheelStepRef(dashLiveRange.maxDraft, dashLiveRange.changeMax)}
                               onChange={(e) => dashLiveRange.changeMax(Number(e.target.value))}
                               title="Process All 없이 즉시 미리보기할 Max B (스크롤로 조절 가능)"
-                              className="w-14 bg-[#141414] border border-[#E4E3E0]/30 p-0.5 font-mono text-[9px] text-[#E4E3E0]" />
+                              className="w-14 bg-white border border-black/30 p-0.5 tabular-nums text-[11px] text-[#1d1d1f]" />
                             {dashLiveRange.active && (
                               <button onClick={() => dashLiveRange.reset(typeof minB === 'number' ? minB : 0, typeof maxB === 'number' ? maxB : 1)}
                                 title="Process All 결과로 되돌리기"
-                                className="px-1.5 py-0.5 font-mono text-[8px] uppercase border border-[#F27D26]/50 text-[#F27D26] hover:bg-[#F27D26]/10">Reset</button>
+                                className="px-1.5 py-0.5 tabular-nums text-[12px] border border-[#0071e3]/50 text-[#0071e3] hover:bg-[#0071e3]/10">Reset</button>
                             )}
                           </div>
                         </div>
                         {dashLiveRange.active && (
-                          <p className="text-[8px] font-mono text-[#F27D26] text-center mb-2">
+                          <p className="text-[12px] tabular-nums text-[#0071e3] text-center mb-2">
                             Live preview [{dashLiveMinBEff.toFixed(2)}, {dashLiveMaxBEff.toFixed(2)}] T — not yet Process All'd
                           </p>
                         )}
                         <ResponsiveContainer width="100%" height="90%">
                           <ScatterChart margin={{ bottom: 20 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#333" />
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5ea" />
                             <XAxis 
                               dataKey="blm" 
                               type="number"
-                              tick={{ fontSize: 10, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                              label={{ value: 'BLM', position: 'insideBottom', offset: 10, fill: '#E4E3E0', fontSize: 10 }}
+                              tick={{ fontSize: 10, fontFamily: 'inherit', fill: '#6e6e73' }}
+                              label={{ value: 'BLM', position: 'insideBottom', offset: 10, fill: '#6e6e73', fontSize: 10 }}
                             />
                             <YAxis 
                               dataKey="freq"
                               type="number"
                               domain={[0, autoFFTRange ? globalSuggestedMaxFreq : manualMaxFreq]}
                               allowDataOverflow={true}
-                              tick={{ fontSize: 10, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                              label={{ value: 'Frequency (T)', angle: -90, position: 'insideLeft', fill: '#E4E3E0', fontSize: 10 }}
+                              tick={{ fontSize: 10, fontFamily: 'inherit', fill: '#6e6e73' }}
+                              label={{ value: 'Frequency (T)', angle: -90, position: 'insideLeft', fill: '#6e6e73', fontSize: 10 }}
                             />
                             <ZAxis dataKey="amp" range={[20, 200]} name="Amplitude" />
                             <Tooltip 
-                              contentStyle={{ backgroundColor: '#141414', border: '1px solid #E4E3E0', fontSize: '10px', color: '#E4E3E0' }}
+                              contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '10px', color: '#1d1d1f' }}
                               cursor={{ strokeDasharray: '3 3' }}
                               formatter={(value: any, name: string, props: any) => {
                                 if (name === 'freq') return [Number(value).toFixed(4), 'Frequency (T)'];
@@ -5243,8 +5264,8 @@ export default function App() {
                                 if (active && payload && payload.length) {
                                   const data = payload[0].payload;
                                   return (
-                                    <div className="bg-[#141414] border border-[#E4E3E0] p-2 font-mono text-[10px] text-[#E4E3E0] shadow-xl">
-                                      <p className="text-[#F27D26] font-bold mb-1 border-b border-[#E4E3E0]/20 pb-1 truncate max-w-[200px]">{data.fileName}</p>
+                                    <div className="bg-white border border-[#d2d2d7] p-2 tabular-nums text-[12px] text-[#1d1d1f] shadow-xl">
+                                      <p className="text-[#0071e3] font-semibold mb-1 border-b border-black/20 pb-1 truncate max-w-[200px]">{data.fileName}</p>
                                       <p><span className="opacity-60">Frequency:</span> {data.freq.toFixed(4)} T</p>
                                       <p><span className="opacity-60">BLM:</span> {data.blm}{blmMode === 'metadata' ? '°' : ''}</p>
                                       <p><span className="opacity-60">Amplitude:</span> {data.amp.toExponential(4)}</p>
@@ -5259,42 +5280,42 @@ export default function App() {
                             <Scatter
                               name="Detected Peaks"
                               data={displayedBatchSummary}
-                              fill="#F27D26"
-                              stroke="#FFFFFF"
+                              fill="#0071e3"
+                              stroke="#1d1d1f"
                               strokeWidth={1}
                             />
                           </ScatterChart>
                         </ResponsiveContainer>
                       </div>
 
-                      <div className="h-[450px] w-full bg-[#141414]/50 p-6 border border-[#E4E3E0]/5">
-                        <h4 className="text-xs font-mono uppercase opacity-60 mb-6 text-center">Peak Amplitude Distribution</h4>
+                      <div className="h-[450px] w-full bg-black/50 p-6 border border-black/5">
+                        <h4 className="text-xs tabular-nums opacity-60 mb-6 text-center">Peak Amplitude Distribution</h4>
                         <ResponsiveContainer width="100%" height="90%">
                           <ScatterChart margin={{ bottom: 20 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#333" />
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5ea" />
                             <XAxis 
                               dataKey="blm" 
                               type="number"
-                              tick={{ fontSize: 10, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                              label={{ value: 'BLM', position: 'insideBottom', offset: 10, fill: '#E4E3E0', fontSize: 10 }}
+                              tick={{ fontSize: 10, fontFamily: 'inherit', fill: '#6e6e73' }}
+                              label={{ value: 'BLM', position: 'insideBottom', offset: 10, fill: '#6e6e73', fontSize: 10 }}
                             />
                             <YAxis 
                               dataKey="amp"
                               type="number"
                               scale="log"
                               domain={['auto', 'auto']}
-                              tick={{ fontSize: 10, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                              label={{ value: 'Amplitude (log)', angle: -90, position: 'insideLeft', fill: '#E4E3E0', fontSize: 10 }}
+                              tick={{ fontSize: 10, fontFamily: 'inherit', fill: '#6e6e73' }}
+                              label={{ value: 'Amplitude (log)', angle: -90, position: 'insideLeft', fill: '#6e6e73', fontSize: 10 }}
                             />
                             <Tooltip 
-                              contentStyle={{ backgroundColor: '#141414', border: '1px solid #E4E3E0', fontSize: '10px', color: '#E4E3E0' }}
+                              contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '10px', color: '#1d1d1f' }}
                               cursor={{ strokeDasharray: '3 3' }}
                               content={({ active, payload }) => {
                                 if (active && payload && payload.length) {
                                   const data = payload[0].payload;
                                   return (
-                                    <div className="bg-[#141414] border border-[#E4E3E0] p-2 font-mono text-[10px] text-[#E4E3E0] shadow-xl">
-                                      <p className="text-[#F27D26] font-bold mb-1 border-b border-[#E4E3E0]/20 pb-1 truncate max-w-[200px]">{data.fileName}</p>
+                                    <div className="bg-white border border-[#d2d2d7] p-2 tabular-nums text-[12px] text-[#1d1d1f] shadow-xl">
+                                      <p className="text-[#0071e3] font-semibold mb-1 border-b border-black/20 pb-1 truncate max-w-[200px]">{data.fileName}</p>
                                       <p><span className="opacity-60">Amplitude:</span> {data.amp.toExponential(4)}</p>
                                       <p><span className="opacity-60">Frequency:</span> {data.freq.toFixed(4)} T</p>
                                       <p><span className="opacity-60">BLM:</span> {data.blm}{blmMode === 'metadata' ? '°' : ''}</p>
@@ -5308,8 +5329,8 @@ export default function App() {
                             <Scatter 
                               name="Peak Amplitudes" 
                               data={batchSummary} 
-                              fill="#FFFFFF" 
-                              stroke="#F27D26"
+                              fill="#1d1d1f" 
+                              stroke="#0071e3"
                               strokeWidth={1}
                             />
                           </ScatterChart>
@@ -5319,7 +5340,7 @@ export default function App() {
 
                     <div className="overflow-x-auto">
                       <div className="flex justify-between items-end mb-4">
-                        <h4 className="text-sm font-mono uppercase tracking-widest text-[#F27D26]">All Detected Peaks</h4>
+                        <h4 className="text-sm tabular-nums text-[#0071e3]">All Detected Peaks</h4>
                         <button 
                           onClick={() => {
                             const csv = `File Name,BLM,Frequency (T),Amplitude\n` + 
@@ -5334,28 +5355,28 @@ export default function App() {
                             a.click();
                             document.body.removeChild(a);
                           }}
-                          className="flex items-center gap-2 text-[10px] font-mono uppercase bg-[#E4E3E0]/10 hover:bg-[#E4E3E0]/20 px-3 py-1 transition-all"
+                          className="flex items-center gap-2 text-[12px] tabular-nums bg-black/5 hover:bg-black/5 px-3 py-1 transition-all"
                         >
                           <Download size={12} />
                           Export All Peaks CSV
                         </button>
                       </div>
-                      <table className="w-full text-left font-mono text-[10px]">
+                      <table className="w-full text-left tabular-nums text-[12px]">
                         <thead>
-                          <tr className="border-b border-[#E4E3E0]/20 text-[#F27D26]">
-                            <th className="py-2 px-4 uppercase tracking-wider">File Name</th>
-                            <th className="py-2 px-4 uppercase tracking-wider text-center">BLM</th>
-                            <th className="py-2 px-4 uppercase tracking-wider text-right">Frequency (T)</th>
-                            <th className="py-2 px-4 uppercase tracking-wider text-right">Amplitude</th>
+                          <tr className="border-b border-black/20 text-[#0071e3]">
+                            <th className="py-2 px-4">File Name</th>
+                            <th className="py-2 px-4 text-center">BLM</th>
+                            <th className="py-2 px-4 text-right">Frequency (T)</th>
+                            <th className="py-2 px-4 text-right">Amplitude</th>
                           </tr>
                         </thead>
                         <tbody>
                           {batchSummary.map((item) => (
-                            <tr key={item.id} className="border-b border-[#E4E3E0]/5 hover:bg-[#E4E3E0]/10 transition-colors">
+                            <tr key={item.id} className="border-b border-black/5 hover:bg-black/5 transition-colors">
                               <td className="py-2 px-4 opacity-70 truncate max-w-[200px]">{item.fileName}</td>
-                              <td className="py-2 px-4 font-bold text-center">{item.blm}{blmMode === 'metadata' ? '°' : ''}</td>
+                              <td className="py-2 px-4 font-semibold text-center">{item.blm}{blmMode === 'metadata' ? '°' : ''}</td>
                               <td className="py-2 px-4 text-right">{item.freq.toFixed(4)}</td>
-                              <td className="py-2 px-4 text-right font-mono">{item.amp.toExponential(4)}</td>
+                              <td className="py-2 px-4 text-right tabular-nums">{item.amp.toExponential(4)}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -5371,48 +5392,48 @@ export default function App() {
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
               {/* ── Control Panel ── */}
-              <div className="bg-[#141414] text-[#E4E3E0] border border-[#E4E3E0]/10">
+              <div className="bg-white text-[#1d1d1f] border border-black/10">
                 {/* Top row */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-[#E4E3E0]/10">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-black/10">
                   <div className="flex items-center gap-3">
-                    <Activity size={18} className="text-[#F27D26]" />
-                    <h3 className="text-lg font-serif italic font-bold">Raw Data Analysis</h3>
-                    <span className="text-[9px] font-mono opacity-30 ml-2">{files.length} file{files.length !== 1 ? 's' : ''} · {uniqueBlms.length} angles</span>
+                    <Activity size={18} className="text-[#0071e3]" />
+                    <h3 className="text-lg font-semibold">Raw Data Analysis</h3>
+                    <span className="text-[11px] tabular-nums opacity-30 ml-2">{files.length} file{files.length !== 1 ? 's' : ''} · {uniqueBlms.length} angles</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <select
                       value={selectedRawColumn}
                       onChange={(e) => setSelectedRawColumn(e.target.value)}
-                      className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[10px] px-3 py-1.5 focus:outline-none focus:border-[#F27D26] cursor-pointer"
+                      className="bg-white border border-black/15 text-[#1d1d1f] tabular-nums text-[12px] px-3 py-1.5 focus:outline-none focus:border-[#0071e3] cursor-pointer"
                     >
-                      <option value="" className="bg-[#141414]">— select column —</option>
-                      <optgroup label="Prefixes" className="bg-[#141414]">
+                      <option value="" className="bg-white">— select column —</option>
+                      <optgroup label="Prefixes" className="bg-white">
                         {prefixes.map(p => <option key={p} value={p}>{p} (all)</option>)}
                       </optgroup>
-                      <optgroup label="Columns" className="bg-[#141414]">
+                      <optgroup label="Columns" className="bg-white">
                         {files[selectedFileIndex]?.columns.map(c => <option key={c} value={c}>{c}</option>)}
                       </optgroup>
                     </select>
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 border border-[#4ADE80]/30 text-[#4ADE80] text-[10px] font-mono">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#4ADE80]" />
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 border border-[#28a745]/30 text-[#28a745] text-[12px] tabular-nums">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#28a745]" />
                       Cos Fit
                     </div>
                   </div>
                 </div>
 
                 {/* BLM filter row */}
-                <div className="flex items-start gap-4 px-6 py-3 border-b border-[#E4E3E0]/10">
+                <div className="flex items-start gap-4 px-6 py-3 border-b border-black/10">
                   <div className="flex items-center gap-1.5 pt-0.5 flex-none">
-                    <span className="text-[9px] font-mono uppercase opacity-40 mr-1">BLM</span>
-                    <button onClick={() => setActiveBlms(new Set(uniqueBlms))} className="px-1.5 py-0.5 font-mono text-[8px] uppercase border border-[#E4E3E0]/20 hover:bg-white/10">All</button>
-                    <button onClick={() => setActiveBlms(new Set())} className="px-1.5 py-0.5 font-mono text-[8px] uppercase border border-[#E4E3E0]/20 hover:bg-white/10">None</button>
+                    <span className="text-[11px] tabular-nums opacity-40 mr-1">BLM</span>
+                    <button onClick={() => setActiveBlms(new Set(uniqueBlms))} className="px-1.5 py-0.5 tabular-nums text-[12px] border border-black/20 hover:bg-black/5">All</button>
+                    <button onClick={() => setActiveBlms(new Set())} className="px-1.5 py-0.5 tabular-nums text-[12px] border border-black/20 hover:bg-black/5">None</button>
                   </div>
                   <div className="flex flex-wrap gap-1.5 max-h-16 overflow-y-auto">
                     {uniqueBlms.map((blm, idx) => (
                       <button
                         key={blm}
                         onClick={() => { const n = new Set(activeBlms); n.has(blm) ? n.delete(blm) : n.add(blm); setActiveBlms(n); }}
-                        className={`px-1.5 py-0.5 font-mono text-[8px] border transition-all ${activeBlms.has(blm) ? 'text-[#141414] border-transparent' : 'border-[#E4E3E0]/15 text-[#E4E3E0] opacity-35 hover:opacity-70'}`}
+                        className={`px-1.5 py-0.5 tabular-nums text-[12px] border transition-all ${activeBlms.has(blm) ? 'text-[#1d1d1f] border-transparent' : 'border-black/15 text-[#1d1d1f] opacity-35 hover:opacity-70'}`}
                         style={{ backgroundColor: activeBlms.has(blm) ? `hsl(${(idx * 137) % 360}, 55%, 55%)` : undefined }}
                       >
                         {blm}°
@@ -5423,32 +5444,32 @@ export default function App() {
 
                 {/* Export row */}
                 <div className="flex items-center gap-2 px-6 py-2.5">
-                  <span className="text-[8px] font-mono uppercase opacity-30 mr-1">Export</span>
-                  <button onClick={exportAllColumnsCSV} className="px-2.5 py-1 font-mono text-[8px] uppercase border border-[#E4E3E0]/15 hover:bg-white/5 flex items-center gap-1"><Download size={9} />Raw CSV</button>
-                  <button onClick={exportProcessedCSV} className="px-2.5 py-1 font-mono text-[8px] uppercase border border-[#E4E3E0]/15 hover:bg-white/5 flex items-center gap-1"><Download size={9} />ΔR</button>
-                  <button onClick={exportFFTSpectraCSV} className="px-2.5 py-1 font-mono text-[8px] uppercase border border-[#E4E3E0]/15 hover:bg-white/5 flex items-center gap-1"><Download size={9} />FFT</button>
-                  <button onClick={exportPeaksWideCSV} className="px-2.5 py-1 font-mono text-[8px] uppercase border border-[#E4E3E0]/15 hover:bg-white/5 flex items-center gap-1"><Download size={9} />Peaks</button>
-                  <button onClick={exportOscillatory1overBCSV} className="px-2.5 py-1 font-mono text-[8px] uppercase border border-[#E4E3E0]/15 hover:bg-white/5 flex items-center gap-1"><Download size={9} />Osc 1/B</button>
-                  <span className="w-px h-4 bg-[#E4E3E0]/15 mx-1" />
-                  <button onClick={exportRawAlignedCSV} title="FFT Assemble처럼 하나의 B(T) 그리드에 보간, 각도/온도순 정렬" className="px-2.5 py-1 font-mono text-[8px] uppercase border border-[#F27D26]/40 text-[#F27D26] hover:bg-[#F27D26]/10 flex items-center gap-1"><Download size={9} />Raw (Aligned)</button>
-                  <button onClick={exportBackgroundSubtractedAlignedCSV} title="B(T) 그리드에 보간, polynomial 배경 제거된 ΔR, 각도/온도순 정렬" className="px-2.5 py-1 font-mono text-[8px] uppercase border border-[#F27D26]/40 text-[#F27D26] hover:bg-[#F27D26]/10 flex items-center gap-1"><Download size={9} />ΔR (Aligned)</button>
-                  <button onClick={exportOscillatoryAlignedCSV} title="FFT Assemble처럼 하나의 1/B 그리드에 보간, 각도/온도순 정렬" className="px-2.5 py-1 font-mono text-[8px] uppercase border border-[#F27D26]/40 text-[#F27D26] hover:bg-[#F27D26]/10 flex items-center gap-1"><Download size={9} />Osc (Aligned)</button>
-                  {activeBlms.size > 30 && <span className="ml-2 text-[8px] font-mono text-[#F27D26] animate-pulse">{activeBlms.size} series active — performance may suffer</span>}
+                  <span className="text-[12px] tabular-nums opacity-30 mr-1">Export</span>
+                  <button onClick={exportAllColumnsCSV} className="px-2.5 py-1 tabular-nums text-[12px] border border-black/15 hover:bg-black/5 flex items-center gap-1"><Download size={9} />Raw CSV</button>
+                  <button onClick={exportProcessedCSV} className="px-2.5 py-1 tabular-nums text-[12px] border border-black/15 hover:bg-black/5 flex items-center gap-1"><Download size={9} />ΔR</button>
+                  <button onClick={exportFFTSpectraCSV} className="px-2.5 py-1 tabular-nums text-[12px] border border-black/15 hover:bg-black/5 flex items-center gap-1"><Download size={9} />FFT</button>
+                  <button onClick={exportPeaksWideCSV} className="px-2.5 py-1 tabular-nums text-[12px] border border-black/15 hover:bg-black/5 flex items-center gap-1"><Download size={9} />Peaks</button>
+                  <button onClick={exportOscillatory1overBCSV} className="px-2.5 py-1 tabular-nums text-[12px] border border-black/15 hover:bg-black/5 flex items-center gap-1"><Download size={9} />Osc 1/B</button>
+                  <span className="w-px h-4 bg-black/5 mx-1" />
+                  <button onClick={exportRawAlignedCSV} title="FFT Assemble처럼 하나의 B(T) 그리드에 보간, 각도/온도순 정렬" className="px-2.5 py-1 tabular-nums text-[12px] border border-[#0071e3]/40 text-[#0071e3] hover:bg-[#0071e3]/10 flex items-center gap-1"><Download size={9} />Raw (Aligned)</button>
+                  <button onClick={exportBackgroundSubtractedAlignedCSV} title="B(T) 그리드에 보간, polynomial 배경 제거된 ΔR, 각도/온도순 정렬" className="px-2.5 py-1 tabular-nums text-[12px] border border-[#0071e3]/40 text-[#0071e3] hover:bg-[#0071e3]/10 flex items-center gap-1"><Download size={9} />ΔR (Aligned)</button>
+                  <button onClick={exportOscillatoryAlignedCSV} title="FFT Assemble처럼 하나의 1/B 그리드에 보간, 각도/온도순 정렬" className="px-2.5 py-1 tabular-nums text-[12px] border border-[#0071e3]/40 text-[#0071e3] hover:bg-[#0071e3]/10 flex items-center gap-1"><Download size={9} />Osc (Aligned)</button>
+                  {activeBlms.size > 30 && <span className="ml-2 text-[12px] tabular-nums text-[#0071e3] animate-pulse">{activeBlms.size} series active — performance may suffer</span>}
                 </div>
               </div>
 
               <div className="grid grid-cols-1 gap-6">
 
                 {/* ── 1. Angular Distribution ── */}
-                <div className="bg-[#141414] text-[#E4E3E0] p-6 border border-[#E4E3E0]/10">
+                <div className="bg-white text-[#1d1d1f] p-6 border border-black/10 rounded-2xl">
                   <div className="flex justify-between items-start mb-4">
                     <div>
-                      <h4 className="text-[11px] font-mono uppercase tracking-widest opacity-50">Angular Distribution</h4>
-                      <p className="text-[10px] font-mono mt-0.5 text-[#F27D26]">
-                        {selectedRawColumn || '—'} <span className="text-[#E4E3E0] opacity-40">@ {rawBSliceTarget === null ? 'Max B' : `${rawBSliceTarget} T`}</span>
+                      <h4 className="text-[11px] tabular-nums opacity-50">Angular Distribution</h4>
+                      <p className="text-[12px] tabular-nums mt-0.5 text-[#0071e3]">
+                        {selectedRawColumn || '—'} <span className="text-[#1d1d1f] opacity-40">@ {rawBSliceTarget === null ? 'Max B' : `${rawBSliceTarget} T`}</span>
                       </p>
                       <div className="flex items-center gap-1.5 mt-2">
-                        <span className="text-[8px] font-mono uppercase opacity-30 mr-0.5">Harmonics</span>
+                        <span className="text-[12px] tabular-nums opacity-30 mr-0.5">Harmonics</span>
                         {([1, 2, 3, 4, 6, 12] as const).map(h => (
                           <button
                             key={h}
@@ -5457,7 +5478,7 @@ export default function App() {
                               next.has(h) ? next.delete(h) : next.add(h);
                               setSelectedHarmonics(next);
                             }}
-                            className={`px-1.5 py-0.5 font-mono text-[8px] border transition-all ${selectedHarmonics.has(h) ? 'border-[#4ADE80]/60 text-[#4ADE80] bg-[#4ADE80]/10' : 'border-[#E4E3E0]/15 text-[#E4E3E0] opacity-30 hover:opacity-60'}`}
+                            className={`px-1.5 py-0.5 tabular-nums text-[12px] border transition-all ${selectedHarmonics.has(h) ? 'border-[#28a745]/60 text-[#28a745] bg-[#28a745]/10' : 'border-black/15 text-[#1d1d1f] opacity-30 hover:opacity-60'}`}
                           >
                             n={h}
                           </button>
@@ -5470,57 +5491,57 @@ export default function App() {
                         value={rawBSliceInput}
                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRawBSliceInput(e.target.value)}
                         onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter') { const v = parseFloat(rawBSliceInput); setRawBSliceTarget(isFinite(v) ? v : null); } }}
-                        className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[10px] w-20 px-2 py-1 focus:outline-none focus:border-[#F27D26] text-center"
+                        className="bg-white border border-black/15 text-[#1d1d1f] tabular-nums text-[12px] w-20 px-2 py-1 focus:outline-none focus:border-[#0071e3] text-center"
                       />
-                      <button onClick={() => { const v = parseFloat(rawBSliceInput); setRawBSliceTarget(isFinite(v) ? v : null); }} className="px-2 py-1 font-mono text-[10px] border border-[#F27D26]/50 text-[#F27D26] hover:bg-[#F27D26]/10">Set</button>
-                      <button onClick={() => { setRawBSliceTarget(null); setRawBSliceInput(''); }} className={`px-2 py-1 font-mono text-[10px] border transition-all ${rawBSliceTarget === null ? 'border-[#F27D26] text-[#F27D26] bg-[#F27D26]/10' : 'border-[#E4E3E0]/15 opacity-40 hover:opacity-70'}`}>Max B</button>
+                      <button onClick={() => { const v = parseFloat(rawBSliceInput); setRawBSliceTarget(isFinite(v) ? v : null); }} className="px-2 py-1 tabular-nums text-[12px] border border-[#0071e3]/50 text-[#0071e3] hover:bg-[#0071e3]/10">Set</button>
+                      <button onClick={() => { setRawBSliceTarget(null); setRawBSliceInput(''); }} className={`px-2 py-1 tabular-nums text-[12px] border transition-all ${rawBSliceTarget === null ? 'border-[#0071e3] text-[#0071e3] bg-[#0071e3]/10' : 'border-black/15 opacity-40 hover:opacity-70'}`}>Max B</button>
                       <button
                         onClick={() => { const csv = "BLM(deg),R,FileName,Column,B(T)\n" + rawPlotDisplayData.filter((d: any) => activeBlms.size === 0 || activeBlms.has(d.x)).map((d: any) => `${d.x},${d.y},"${d.fileName}","${d.columnName}",${rawBSliceTarget ?? 'MaxB'}`).join('\n'); downloadCSV(csv, `R_vs_BLM_${rawBSliceTarget ?? 'MaxB'}T_${selectedRawColumn}.csv`); }}
-                        className="px-2 py-1 font-mono text-[9px] uppercase border border-[#E4E3E0]/15 hover:bg-white/5 flex items-center gap-1"
+                        className="px-2 py-1 tabular-nums text-[11px] border border-black/15 hover:bg-black/5 flex items-center gap-1"
                       ><Download size={9} />CSV</button>
                     </div>
                   </div>
                   <div className="h-[380px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <ComposedChart margin={{ bottom: 20, left: 10 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#333" />
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5ea" />
                         <XAxis
                           dataKey="x"
                           type="number"
                           name="BLM"
-                          tick={{ fontSize: 10, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                          label={{ value: 'BLM (°)', position: 'insideBottom', offset: 10, fill: '#E4E3E0', fontSize: 10 }}
+                          tick={{ fontSize: 10, fontFamily: 'inherit', fill: '#6e6e73' }}
+                          label={{ value: 'BLM (°)', position: 'insideBottom', offset: 10, fill: '#6e6e73', fontSize: 10 }}
                         />
                         <YAxis
                           dataKey="y"
-                          tick={{ fontSize: 10, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                          label={{ value: selectedRawColumn, angle: -90, position: 'insideLeft', fill: '#E4E3E0', fontSize: 10 }}
+                          tick={{ fontSize: 10, fontFamily: 'inherit', fill: '#6e6e73' }}
+                          label={{ value: selectedRawColumn, angle: -90, position: 'insideLeft', fill: '#6e6e73', fontSize: 10 }}
                           tickFormatter={(v: number) => v.toExponential(2)}
                         />
                         <Tooltip
                           cursor={{ strokeDasharray: '3 3' }}
-                          contentStyle={{ backgroundColor: '#141414', border: '1px solid #E4E3E0', fontSize: '10px', color: '#E4E3E0' }}
+                          contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '10px', color: '#1d1d1f' }}
                           formatter={(val: any) => typeof val === 'number' ? val.toExponential(4) : val}
                         />
-                        <Legend wrapperStyle={{ paddingTop: '20px', fontSize: '10px', fontFamily: 'monospace' }} />
+                        <Legend wrapperStyle={{ paddingTop: '20px', fontSize: '10px', fontFamily: 'inherit' }} />
                         <Scatter
                           name={`${selectedRawColumn} @ ${rawBSliceTarget === null ? 'Max B' : rawBSliceTarget + ' T'}`}
                           data={rawPlotFitData}
-                          fill="#F27D26"
+                          fill="#0071e3"
                           isAnimationActive={false}
                           shape={(props: any) => {
                             const { cx, cy } = props;
-                            return <circle cx={cx} cy={cy} r={7} fill="#F27D26" fillOpacity={0.85} />;
+                            return <circle cx={cx} cy={cy} r={7} fill="#0071e3" fillOpacity={0.85} />;
                           }}
                         />
                         {cosFitCurve.length > 0 && (
                           <Scatter
                             name="Cos Fit"
                             data={cosFitCurve}
-                            line={{ stroke: '#4ADE80', strokeWidth: 2 }}
+                            line={{ stroke: '#28a745', strokeWidth: 2 }}
                             lineType="joint"
                             shape={(props: any) => <circle cx={props.cx} cy={props.cy} r={0} />}
-                            fill="#4ADE80"
+                            fill="#28a745"
                             isAnimationActive={false}
                           />
                         )}
@@ -5533,63 +5554,63 @@ export default function App() {
                         [1, cosFitAtSlice.A1], [2, cosFitAtSlice.A2], [3, cosFitAtSlice.A3],
                         [4, cosFitAtSlice.A4], [6, cosFitAtSlice.A6], [12, cosFitAtSlice.A12],
                       ] as [number, number][]).filter(([h]) => selectedHarmonics.has(h)).map(([h, val]) => (
-                        <div key={h} className="border border-[#4ADE80]/25 px-3 py-1.5 bg-[#4ADE80]/5 flex items-center gap-2">
-                          <span className="text-[8px] font-mono uppercase text-[#4ADE80] opacity-70">A{h}</span>
-                          <span className="text-[11px] font-mono text-[#4ADE80]">{val.toExponential(3)}</span>
+                        <div key={h} className="border border-[#28a745]/25 px-3 py-1.5 bg-[#28a745]/5 flex items-center gap-2">
+                          <span className="text-[12px] tabular-nums text-[#28a745] opacity-70">A{h}</span>
+                          <span className="text-[11px] tabular-nums text-[#28a745]">{val.toExponential(3)}</span>
                         </div>
                       ))}
-                      <span className="text-[8px] font-mono opacity-25 text-[#E4E3E0] ml-1">y₀={cosFitAtSlice.y0.toExponential(2)}</span>
-                      <div className="ml-auto flex gap-3 items-center border-l border-[#E4E3E0]/10 pl-3">
+                      <span className="text-[12px] tabular-nums opacity-25 text-[#1d1d1f] ml-1">y₀={cosFitAtSlice.y0.toExponential(2)}</span>
+                      <div className="ml-auto flex gap-3 items-center border-l border-black/10 pl-3">
                         <div className="flex items-center gap-1.5">
-                          <span className="text-[8px] font-mono uppercase opacity-40 text-[#E4E3E0]">R²</span>
-                          <span className="text-[11px] font-mono text-[#4ADE80]">{cosFitAtSlice.r2.toFixed(5)}</span>
+                          <span className="text-[12px] tabular-nums opacity-40 text-[#1d1d1f]">R²</span>
+                          <span className="text-[11px] tabular-nums text-[#28a745]">{cosFitAtSlice.r2.toFixed(5)}</span>
                         </div>
                         <div className="flex items-center gap-1.5">
-                          <span className="text-[8px] font-mono uppercase opacity-40 text-[#E4E3E0]">RMSE</span>
-                          <span className="text-[11px] font-mono text-[#4ADE80]">{cosFitAtSlice.rmse.toExponential(3)}</span>
+                          <span className="text-[12px] tabular-nums opacity-40 text-[#1d1d1f]">RMSE</span>
+                          <span className="text-[11px] tabular-nums text-[#28a745]">{cosFitAtSlice.rmse.toExponential(3)}</span>
                         </div>
                       </div>
                     </div>
                   )}
                   {!cosFitAtSlice && rawPlotFitData.length > 0 && selectedHarmonics.size > 0 && (
-                    <p className="mt-2 text-[9px] font-mono text-[#4ADE80]/50">Need ≥{1 + 2 * selectedHarmonics.size} data points for {selectedHarmonics.size} harmonics (currently {rawPlotFitData.length})</p>
+                    <p className="mt-2 text-[11px] tabular-nums text-[#28a745]/50">Need ≥{1 + 2 * selectedHarmonics.size} data points for {selectedHarmonics.size} harmonics (currently {rawPlotFitData.length})</p>
                   )}
                 </div>
 
                 {/* ── 2. R vs B-Field ── */}
-                <div className="bg-[#141414] text-[#E4E3E0] p-6 border border-[#E4E3E0]/10">
+                <div className="bg-white text-[#1d1d1f] p-6 border border-black/10 rounded-2xl">
                   <div className="flex justify-between items-center mb-4">
                     <div>
-                      <h4 className="text-[11px] font-mono uppercase tracking-widest opacity-50">Field Sweep</h4>
-                      <p className="text-[10px] font-mono mt-0.5 text-[#F27D26]">{selectedRawColumn || '—'} <span className="text-[#E4E3E0] opacity-40">vs B-Field</span></p>
+                      <h4 className="text-[11px] tabular-nums opacity-50">Field Sweep</h4>
+                      <p className="text-[12px] tabular-nums mt-0.5 text-[#0071e3]">{selectedRawColumn || '—'} <span className="text-[#1d1d1f] opacity-40">vs B-Field</span></p>
                     </div>
-                    <button onClick={exportRawDataCSV} className="px-2 py-1 font-mono text-[9px] uppercase border border-[#E4E3E0]/15 hover:bg-white/5 flex items-center gap-1"><Download size={9} />CSV</button>
+                    <button onClick={exportRawDataCSV} className="px-2 py-1 tabular-nums text-[11px] border border-black/15 hover:bg-black/5 flex items-center gap-1"><Download size={9} />CSV</button>
                   </div>
                   <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                     <div className="lg:col-span-3 h-[420px] w-full">
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart margin={{ bottom: 20, left: 10 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#333" />
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5ea" />
                           <XAxis 
                             dataKey="b" 
                             type="number" 
                             domain={['auto', 'auto']} 
-                            tick={{ fontSize: 10, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                            label={{ value: 'B-Field (T)', position: 'insideBottom', offset: 10, fill: '#E4E3E0', fontSize: 10 }}
+                            tick={{ fontSize: 10, fontFamily: 'inherit', fill: '#6e6e73' }}
+                            label={{ value: 'B-Field (T)', position: 'insideBottom', offset: 10, fill: '#6e6e73', fontSize: 10 }}
                           />
                           <YAxis 
-                            tick={{ fontSize: 10, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                            label={{ value: selectedRawColumn, angle: -90, position: 'insideLeft', fill: '#E4E3E0', fontSize: 10 }}
+                            tick={{ fontSize: 10, fontFamily: 'inherit', fill: '#6e6e73' }}
+                            label={{ value: selectedRawColumn, angle: -90, position: 'insideLeft', fill: '#6e6e73', fontSize: 10 }}
                           />
                           <Tooltip 
-                            contentStyle={{ backgroundColor: '#141414', border: '1px solid #E4E3E0', fontSize: '10px', color: '#E4E3E0' }}
+                            contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '10px', color: '#1d1d1f' }}
                           />
                           <Legend 
-                            wrapperStyle={{ paddingTop: '20px', fontSize: '10px', fontFamily: 'monospace' }}
+                            wrapperStyle={{ paddingTop: '20px', fontSize: '10px', fontFamily: 'inherit' }}
                           />
                           {allRawSeries.filter(s => activeBlms.has(s.blm)).slice(0, 50).map((series) => {
                             const blmIdx = uniqueBlms.indexOf(series.blm);
-                            const color = series.fileName === files[selectedFileIndex]?.name ? "#F27D26" : `hsl(${(blmIdx * 137) % 360}, 50%, 50%)`;
+                            const color = series.fileName === files[selectedFileIndex]?.name ? "#0071e3" : `hsl(${(blmIdx * 137) % 360}, 50%, 50%)`;
                             return (
                               <Line 
                                 key={`${series.fileName}-${series.columnName}`} 
@@ -5606,15 +5627,15 @@ export default function App() {
                         </LineChart>
                       </ResponsiveContainer>
                     </div>
-                    <div className="border border-[#E4E3E0]/10 p-3 overflow-hidden flex flex-col h-[420px]">
-                      <h4 className="text-[9px] font-mono uppercase opacity-40 mb-3 text-[#E4E3E0]">Data (first 100 pts)</h4>
+                    <div className="border border-black/10 p-3 overflow-hidden flex flex-col h-[420px]">
+                      <h4 className="text-[11px] tabular-nums opacity-40 mb-3 text-[#1d1d1f]">Data (first 100 pts)</h4>
                       <div className="flex-1 overflow-auto">
                         <table className="w-full text-left border-collapse">
-                          <thead className="sticky top-0 bg-[#141414] z-10">
-                            <tr className="border-b border-[#E4E3E0]/20">
-                              <th className="p-1 text-[9px] font-mono uppercase opacity-60 text-[#E4E3E0]">Idx</th>
-                              <th className="p-1 text-[9px] font-mono uppercase opacity-60 text-[#E4E3E0]">B (T)</th>
-                              <th className="p-1 text-[9px] font-mono uppercase opacity-60 text-[#E4E3E0]">R (Ω)</th>
+                          <thead className="sticky top-0 bg-white z-10">
+                            <tr className="border-b border-black/20">
+                              <th className="p-1 text-[11px] tabular-nums opacity-60 text-[#1d1d1f]">Idx</th>
+                              <th className="p-1 text-[11px] tabular-nums opacity-60 text-[#1d1d1f]">B (T)</th>
+                              <th className="p-1 text-[11px] tabular-nums opacity-60 text-[#1d1d1f]">R (Ω)</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -5622,17 +5643,17 @@ export default function App() {
                               const bCol = selectedBColumn || Object.keys(row)[0];
                               const rCol = selectedRawColumn || Object.keys(row)[1];
                               return (
-                                <tr key={idx} className="border-b border-[#E4E3E0]/5 hover:bg-white/5">
-                                  <td className="p-1 text-[9px] font-mono text-[#E4E3E0] opacity-40">{idx + 1}</td>
-                                  <td className="p-1 text-[9px] font-mono text-[#F27D26]">{parseFloat(String(row[bCol])).toFixed(4)}</td>
-                                  <td className="p-1 text-[9px] font-mono text-[#E4E3E0]">{parseFloat(String(row[rCol])).toFixed(4)}</td>
+                                <tr key={idx} className="border-b border-black/5 hover:bg-black/5">
+                                  <td className="p-1 text-[11px] tabular-nums text-[#1d1d1f] opacity-40">{idx + 1}</td>
+                                  <td className="p-1 text-[11px] tabular-nums text-[#0071e3]">{parseFloat(String(row[bCol])).toFixed(4)}</td>
+                                  <td className="p-1 text-[11px] tabular-nums text-[#1d1d1f]">{parseFloat(String(row[rCol])).toFixed(4)}</td>
                                 </tr>
                               );
                             })}
                           </tbody>
                         </table>
                       </div>
-                      <div className="mt-2 text-[8px] font-mono opacity-40 text-[#E4E3E0] truncate">
+                      <div className="mt-2 text-[12px] tabular-nums opacity-40 text-[#1d1d1f] truncate">
                         {files.length > 0 ? files[selectedFileIndex].name : 'No file'}
                       </div>
                     </div>
@@ -5641,49 +5662,49 @@ export default function App() {
 
                 {/* ── 3. Advanced: 2-col side by side ── */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div className="bg-[#141414] text-[#E4E3E0] p-6 border border-[#E4E3E0]/10">
+                  <div className="bg-white text-[#1d1d1f] p-6 border border-black/10 rounded-2xl">
                     <div className="flex justify-between items-center mb-4">
                       <div>
-                        <h4 className="text-[11px] font-mono uppercase tracking-widest opacity-50">Peak Transition Field</h4>
-                        <p className="text-[10px] font-mono mt-0.5 text-[#F27D26]">B<sub>max dR/dB</sub> <span className="text-[#E4E3E0] opacity-40">vs BLM</span></p>
+                        <h4 className="text-[11px] tabular-nums opacity-50">Peak Transition Field</h4>
+                        <p className="text-[12px] tabular-nums mt-0.5 text-[#0071e3]">B<sub>max dR/dB</sub> <span className="text-[#1d1d1f] opacity-40">vs BLM</span></p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <input type="number" value={maxDerivMinB} onChange={(e) => setMaxDerivMinB(parseFloat(e.target.value) || 0)} className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[9px] w-10 px-1 py-0.5 text-center focus:outline-none focus:border-[#F27D26]" />
-                        <span className="text-[9px] opacity-30">–</span>
-                        <input type="number" value={maxDerivMaxB} onChange={(e) => setMaxDerivMaxB(parseFloat(e.target.value) || 0)} className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[9px] w-10 px-1 py-0.5 text-center focus:outline-none focus:border-[#F27D26]" />
-                        <span className="text-[9px] opacity-30">T</span>
-                        <button onClick={() => handleProcessAll()} className="text-[#F27D26] hover:opacity-70 ml-1" title="Recalculate"><RefreshCw size={11} /></button>
-                        <button onClick={() => { const filtered = maxDerivPlotData.filter(d => activeBlms.has(d.x)); downloadCSV("BLM(°),Field(T),FileName,Column\n" + filtered.map(d => `${d.x},${d.y},${d.fileName},${d.columnName}`).join('\n'), `max_deriv_vs_blm_${maxDerivMinB}T_${maxDerivMaxB}T.csv`); }} className="px-2 py-0.5 font-mono text-[8px] uppercase border border-[#E4E3E0]/15 hover:bg-white/5 flex items-center gap-1"><Download size={8} />CSV</button>
+                        <input type="number" value={maxDerivMinB} onChange={(e) => setMaxDerivMinB(parseFloat(e.target.value) || 0)} className="bg-white border border-black/15 text-[#1d1d1f] tabular-nums text-[11px] w-10 px-1 py-0.5 text-center focus:outline-none focus:border-[#0071e3]" />
+                        <span className="text-[11px] opacity-30">–</span>
+                        <input type="number" value={maxDerivMaxB} onChange={(e) => setMaxDerivMaxB(parseFloat(e.target.value) || 0)} className="bg-white border border-black/15 text-[#1d1d1f] tabular-nums text-[11px] w-10 px-1 py-0.5 text-center focus:outline-none focus:border-[#0071e3]" />
+                        <span className="text-[11px] opacity-30">T</span>
+                        <button onClick={() => handleProcessAll()} className="text-[#0071e3] hover:opacity-70 ml-1" title="Recalculate"><RefreshCw size={11} /></button>
+                        <button onClick={() => { const filtered = maxDerivPlotData.filter(d => activeBlms.has(d.x)); downloadCSV("BLM(°),Field(T),FileName,Column\n" + filtered.map(d => `${d.x},${d.y},${d.fileName},${d.columnName}`).join('\n'), `max_deriv_vs_blm_${maxDerivMinB}T_${maxDerivMaxB}T.csv`); }} className="px-2 py-0.5 tabular-nums text-[12px] border border-black/15 hover:bg-black/5 flex items-center gap-1"><Download size={8} />CSV</button>
                       </div>
                     </div>
                     <div className="h-[340px] w-full">
                       <ResponsiveContainer width="100%" height="100%">
                         <ScatterChart>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#222" />
-                          <XAxis dataKey="x" type="number" name="BLM" tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }} label={{ value: 'BLM (°)', position: 'insideBottom', offset: 10, fill: '#E4E3E0', fontSize: 9 }} />
-                          <YAxis dataKey="y" name="B peak" tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }} label={{ value: 'B (T)', angle: -90, position: 'insideLeft', fill: '#E4E3E0', fontSize: 9 }} />
-                          <Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ backgroundColor: '#141414', border: '1px solid #333', fontSize: '9px', color: '#E4E3E0' }} />
-                          <Scatter name="B at max dR/dB" data={maxDerivPlotData.filter(d => activeBlms.has(d.x))} fill="#F27D26" shape="star" isAnimationActive={false} />
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5ea" />
+                          <XAxis dataKey="x" type="number" name="BLM" tick={{ fontSize: 9, fontFamily: 'inherit', fill: '#6e6e73' }} label={{ value: 'BLM (°)', position: 'insideBottom', offset: 10, fill: '#6e6e73', fontSize: 9 }} />
+                          <YAxis dataKey="y" name="B peak" tick={{ fontSize: 9, fontFamily: 'inherit', fill: '#6e6e73' }} label={{ value: 'B (T)', angle: -90, position: 'insideLeft', fill: '#6e6e73', fontSize: 9 }} />
+                          <Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '9px', color: '#1d1d1f' }} />
+                          <Scatter name="B at max dR/dB" data={maxDerivPlotData.filter(d => activeBlms.has(d.x))} fill="#0071e3" shape="star" isAnimationActive={false} />
                         </ScatterChart>
                       </ResponsiveContainer>
                     </div>
                   </div>
 
-                  <div className="bg-[#141414] text-[#E4E3E0] p-6 border border-[#E4E3E0]/10">
-                    <h4 className="text-[11px] font-mono uppercase tracking-widest opacity-50 mb-4">Individual Oscillatory Curves <span className="opacity-50">(ΔR vs 1/B)</span></h4>
+                  <div className="bg-white text-[#1d1d1f] p-6 border border-black/10 rounded-2xl">
+                    <h4 className="text-[11px] tabular-nums opacity-50 mb-4">Individual Oscillatory Curves <span className="opacity-50">(ΔR vs 1/B)</span></h4>
                     <div className="grid grid-cols-2 gap-2 max-h-[340px] overflow-y-auto">
                       {allRawSeries.filter(s => activeBlms.has(s.blm)).slice(0, 30).map((series) => (
-                        <div key={`${series.fileName}-${series.columnName}`} className="border border-[#E4E3E0]/8 p-2">
+                        <div key={`${series.fileName}-${series.columnName}`} className="border border-black/8 p-2">
                           <div className="flex justify-between items-center mb-1">
-                            <span className="text-[8px] font-mono truncate max-w-[80px] opacity-40">{series.fileName}</span>
-                            <span className="text-[8px] font-mono text-[#F27D26]">{series.blm}°</span>
+                            <span className="text-[12px] tabular-nums truncate max-w-[80px] opacity-40">{series.fileName}</span>
+                            <span className="text-[12px] tabular-nums text-[#0071e3]">{series.blm}°</span>
                           </div>
                           <div className="h-[70px] w-full">
                             <ResponsiveContainer width="100%" height="100%">
                               <AreaChart data={series.invBData}>
                                 <XAxis dataKey="invB" hide type="number" domain={[maxB && Number(maxB) !== 0 ? 1/Number(maxB) : 'auto', minB && Number(minB) !== 0 ? 1/Number(minB) : 'auto']} allowDataOverflow={true} />
                                 <YAxis hide />
-                                <Area type="monotone" dataKey="val" stroke="#F27D26" fill="#F27D26" fillOpacity={0.2} dot={false} isAnimationActive={false} strokeWidth={1} />
+                                <Area type="monotone" dataKey="val" stroke="#0071e3" fill="#0071e3" fillOpacity={0.2} dot={false} isAnimationActive={false} strokeWidth={1} />
                               </AreaChart>
                             </ResponsiveContainer>
                           </div>
@@ -5691,17 +5712,17 @@ export default function App() {
                       ))}
                     </div>
                     {allRawSeries.filter(s => activeBlms.has(s.blm)).length > 30 && (
-                      <p className="text-[8px] font-mono opacity-30 mt-2 text-center">Showing first 30. Filter BLMs to see others.</p>
+                      <p className="text-[12px] tabular-nums opacity-30 mt-2 text-center">Showing first 30. Filter BLMs to see others.</p>
                     )}
                   </div>
                 </div>
 
                 {/* ── 5. R vs BLM at Fixed Field ── */}
-                <div className="bg-[#141414] text-[#E4E3E0] p-6 border border-[#E4E3E0]/10">
+                <div className="bg-white text-[#1d1d1f] p-6 border border-black/10 rounded-2xl">
                   <div className="flex justify-between items-center mb-4">
                     <div>
-                      <h4 className="text-[11px] font-mono uppercase tracking-widest opacity-50">Angular Dependence at Fixed Field</h4>
-                      <p className="text-[10px] font-mono mt-0.5 text-[#F27D26]">{selectedRawColumn || '—'} <span className="text-[#E4E3E0] opacity-40">vs BLM @ multiple B</span></p>
+                      <h4 className="text-[11px] tabular-nums opacity-50">Angular Dependence at Fixed Field</h4>
+                      <p className="text-[12px] tabular-nums mt-0.5 text-[#0071e3]">{selectedRawColumn || '—'} <span className="text-[#1d1d1f] opacity-40">vs BLM @ multiple B</span></p>
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="flex items-center gap-2">
@@ -5719,7 +5740,7 @@ export default function App() {
                               setFieldSliceInput('');
                             }
                           }}
-                          className="bg-transparent border-b border-[#E4E3E0]/20 text-[#E4E3E0] font-mono text-[10px] w-24 focus:outline-none focus:border-[#F27D26] text-center"
+                          className="bg-transparent border-b border-black/20 text-[#1d1d1f] tabular-nums text-[12px] w-24 focus:outline-none focus:border-[#0071e3] text-center"
                         />
                         <button
                           onClick={() => {
@@ -5728,14 +5749,14 @@ export default function App() {
                               setFieldSliceValues(prev => [...prev, v].sort((a, b) => a - b));
                             setFieldSliceInput('');
                           }}
-                          className="text-[#F27D26] border border-[#F27D26]/40 px-2 py-0.5 font-mono text-[10px] hover:bg-[#F27D26]/10"
+                          className="text-[#0071e3] border border-[#0071e3]/40 px-2 py-0.5 tabular-nums text-[12px] hover:bg-[#0071e3]/10"
                         >
                           + Add (T)
                         </button>
                       </div>
                       <button
                         onClick={() => setFieldSliceValues([1, 5, 10, 15, 20, 25, 30])}
-                        className="px-2 py-0.5 font-mono text-[9px] border border-[#E4E3E0]/20 opacity-50 hover:opacity-80"
+                        className="px-2 py-0.5 tabular-nums text-[11px] border border-black/20 opacity-50 hover:opacity-80"
                       >
                         Reset
                       </button>
@@ -5749,7 +5770,7 @@ export default function App() {
                           });
                           downloadCSV(rows.join('\n'), `R_vs_BLM_fixed_field_${selectedRawColumn || 'all'}.csv`);
                         }}
-                        className="bg-[#F27D26] text-white px-3 py-1 font-mono text-[10px] uppercase tracking-widest hover:bg-[#F27D26]/80 flex items-center gap-2"
+                        className="bg-[#0071e3] text-white px-3 py-1 tabular-nums text-[12px] hover:bg-[#0071e3]/80 flex items-center gap-2"
                       >
                         <Download size={12} />
                         Export CSV
@@ -5762,13 +5783,13 @@ export default function App() {
                     {fieldSliceValues.map((v, idx) => (
                       <span
                         key={v}
-                        className="flex items-center gap-1 px-2 py-0.5 font-mono text-[9px] border border-[#E4E3E0]/15"
+                        className="flex items-center gap-1 px-2 py-0.5 tabular-nums text-[11px] border border-black/15"
                         style={{ borderLeft: `3px solid hsl(${(idx * 51) % 360}, 60%, 55%)` }}
                       >
                         {v} T
                         <button
                           onClick={() => setFieldSliceValues(prev => prev.filter(x => x !== v))}
-                          className="opacity-40 hover:opacity-100 hover:text-red-400 ml-1 leading-none"
+                          className="opacity-40 hover:opacity-100 hover:text-red-600 ml-1 leading-none"
                         >
                           ×
                         </button>
@@ -5779,24 +5800,24 @@ export default function App() {
                   <div className="h-[420px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart margin={{ bottom: 20, left: 10 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#333" />
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5ea" />
                         <XAxis
                           dataKey="blm"
                           type="number"
                           allowDuplicatedCategory={false}
-                          tick={{ fontSize: 10, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                          label={{ value: 'BLM (°)', position: 'insideBottom', offset: 10, fill: '#E4E3E0', fontSize: 10 }}
+                          tick={{ fontSize: 10, fontFamily: 'inherit', fill: '#6e6e73' }}
+                          label={{ value: 'BLM (°)', position: 'insideBottom', offset: 10, fill: '#6e6e73', fontSize: 10 }}
                         />
                         <YAxis
-                          tick={{ fontSize: 10, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                          label={{ value: selectedRawColumn || 'R', angle: -90, position: 'insideLeft', fill: '#E4E3E0', fontSize: 10 }}
+                          tick={{ fontSize: 10, fontFamily: 'inherit', fill: '#6e6e73' }}
+                          label={{ value: selectedRawColumn || 'R', angle: -90, position: 'insideLeft', fill: '#6e6e73', fontSize: 10 }}
                           tickFormatter={(v: number) => v.toExponential(2)}
                         />
                         <Tooltip
-                          contentStyle={{ backgroundColor: '#141414', border: '1px solid #E4E3E0', fontSize: '10px', color: '#E4E3E0' }}
+                          contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '10px', color: '#1d1d1f' }}
                           formatter={(val: any) => typeof val === 'number' ? val.toExponential(4) : val}
                         />
-                        <Legend wrapperStyle={{ paddingTop: '20px', fontSize: '10px', fontFamily: 'monospace' }} />
+                        <Legend wrapperStyle={{ paddingTop: '20px', fontSize: '10px', fontFamily: 'inherit' }} />
                         {fieldSliceValues.map((b, idx) => (
                           <Line
                             key={b}
@@ -5816,31 +5837,31 @@ export default function App() {
                 </div>
 
                 {/* ── 6. Harmonic Amplitudes vs H² ── */}
-                <div className="bg-[#141414] text-[#E4E3E0] p-6 border border-[#E4E3E0]/10">
+                <div className="bg-white text-[#1d1d1f] p-6 border border-black/10 rounded-2xl">
                   <div className="flex justify-between items-center mb-4">
                     <div>
-                      <h4 className="text-[11px] font-mono uppercase tracking-widest opacity-50">Harmonic Amplitudes vs Field</h4>
-                      <p className="text-[10px] font-mono mt-0.5">
-                        <span style={{ color: '#4ADE80' }}>A₂, A₃, A₄, A₆</span>
-                        <span className="text-[#E4E3E0] opacity-40"> vs H² (T²) · 0.1 T intervals</span>
+                      <h4 className="text-[11px] tabular-nums opacity-50">Harmonic Amplitudes vs Field</h4>
+                      <p className="text-[12px] tabular-nums mt-0.5">
+                        <span style={{ color: '#28a745' }}>A₂, A₃, A₄, A₆</span>
+                        <span className="text-[#1d1d1f] opacity-40"> vs H² (T²) · 0.1 T intervals</span>
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
-                      {cosHarmonicScanData.length > 0 && <span className="text-[9px] font-mono opacity-30">{cosHarmonicScanData.length} pts</span>}
+                      {cosHarmonicScanData.length > 0 && <span className="text-[11px] tabular-nums opacity-30">{cosHarmonicScanData.length} pts</span>}
                       <button
                         onClick={() => { if (cosHarmonicScanData.length === 0) return; downloadCSV('B(T),A1,A2,A3,A4,A6\n' + cosHarmonicScanData.map(d => `${d.b},${d.A1},${d.A2},${d.A3},${d.A4},${d.A6}`).join('\n'), `harmonic_amplitudes_vs_B_${selectedRawColumn || 'all'}.csv`); }}
-                        className={`px-2 py-1 font-mono text-[9px] uppercase border flex items-center gap-1 transition-all ${cosHarmonicScanData.length > 0 ? 'border-[#4ADE80]/40 text-[#4ADE80] hover:bg-[#4ADE80]/10' : 'border-[#E4E3E0]/10 opacity-20 cursor-not-allowed'}`}
+                        className={`px-2 py-1 tabular-nums text-[11px] border flex items-center gap-1 transition-all ${cosHarmonicScanData.length > 0 ? 'border-[#28a745]/40 text-[#28a745] hover:bg-[#28a745]/10' : 'border-black/10 opacity-20 cursor-not-allowed'}`}
                       ><Download size={9} />CSV</button>
                     </div>
                   </div>
                   {cosHarmonicScanDataB2.length > 0 ? (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {([
-                          { key: 'A1' as const, label: 'A₁ (n=1)', color: '#C084FC', h: 1 },
-                          { key: 'A2' as const, label: 'A₂ (n=2)', color: '#60A5FA', h: 2 },
-                          { key: 'A3' as const, label: 'A₃ (n=3)', color: '#F472B6', h: 3 },
-                          { key: 'A4' as const, label: 'A₄ (n=4)', color: '#FBBF24', h: 4 },
-                          { key: 'A6' as const, label: 'A₆ (n=6)', color: '#4ADE80', h: 6 },
+                          { key: 'A1' as const, label: 'A₁ (n=1)', color: '#af52de', h: 1 },
+                          { key: 'A2' as const, label: 'A₂ (n=2)', color: '#ff9500', h: 2 },
+                          { key: 'A3' as const, label: 'A₃ (n=3)', color: '#e8457a', h: 3 },
+                          { key: 'A4' as const, label: 'A₄ (n=4)', color: '#c27c0e', h: 4 },
+                          { key: 'A6' as const, label: 'A₆ (n=6)', color: '#28a745', h: 6 },
                         ] as { key: 'A1' | 'A2' | 'A3' | 'A4' | 'A6'; label: string; color: string; h: number }[])
                         .filter(({ h }) => selectedHarmonics.has(h))
                         .map(({ key, label, color }) => {
@@ -5848,33 +5869,33 @@ export default function App() {
                           const maxVal = Math.max(...vals);
                           const maxPt = cosHarmonicScanDataB2[vals.indexOf(maxVal)];
                           return (
-                            <div key={key} className="border border-[#E4E3E0]/10 p-4" style={{ borderLeft: `3px solid ${color}` }}>
+                            <div key={key} className="border border-black/10 p-4" style={{ borderLeft: `3px solid ${color}` }}>
                               <div className="flex justify-between items-center mb-3">
-                                <span className="text-[10px] font-mono uppercase" style={{ color }}>{label}</span>
-                                <span className="text-[9px] font-mono opacity-40 text-[#E4E3E0]">
+                                <span className="text-[12px] tabular-nums" style={{ color }}>{label}</span>
+                                <span className="text-[11px] tabular-nums opacity-40 text-[#1d1d1f]">
                                   max {maxVal.toExponential(3)} @ {maxPt?.b} T ({maxPt ? maxPt.b2.toFixed(1) : '—'} T²)
                                 </span>
                               </div>
                               <div className="h-[280px] w-full">
                                 <ResponsiveContainer width="100%" height="100%">
                                   <LineChart data={cosHarmonicScanDataB2} margin={{ bottom: 20, left: 10, right: 10 }}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#222" />
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5ea" />
                                     <XAxis
                                       dataKey="b2"
                                       type="number"
                                       domain={['dataMin', 'dataMax']}
-                                      tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }}
+                                      tick={{ fontSize: 9, fontFamily: 'inherit', fill: '#6e6e73' }}
                                       tickFormatter={(v: number) => v.toFixed(0)}
-                                      label={{ value: 'H² (T²)', position: 'insideBottom', offset: 10, fill: '#E4E3E0', fontSize: 9 }}
+                                      label={{ value: 'H² (T²)', position: 'insideBottom', offset: 10, fill: '#6e6e73', fontSize: 9 }}
                                     />
                                     <YAxis
-                                      tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }}
+                                      tick={{ fontSize: 9, fontFamily: 'inherit', fill: '#6e6e73' }}
                                       label={{ value: label, angle: -90, position: 'insideLeft', fill: color, fontSize: 9 }}
                                       tickFormatter={(v: number) => v.toExponential(1)}
                                       width={60}
                                     />
                                     <Tooltip
-                                      contentStyle={{ backgroundColor: '#141414', border: `1px solid ${color}44`, fontSize: '9px', color: '#E4E3E0' }}
+                                      contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: `1px solid ${color}44`, fontSize: '9px', color: '#1d1d1f' }}
                                       formatter={(val: any) => [typeof val === 'number' ? val.toExponential(4) : val, label]}
                                       labelFormatter={(b2: number) => `H² = ${b2.toFixed(2)} T²  (H = ${Math.sqrt(b2).toFixed(2)} T)`}
                                     />
@@ -5893,7 +5914,7 @@ export default function App() {
                         })}
                       </div>
                     ) : (
-                      <div className="flex items-center justify-center h-32 px-8 text-[10px] font-mono text-center leading-relaxed text-[#E4E3E0] opacity-50">
+                      <div className="flex items-center justify-center h-32 px-8 text-[12px] tabular-nums text-center leading-relaxed text-[#1d1d1f] opacity-50">
                         {harmonicScanDiag ?? 'Computing…'}
                       </div>
                     )}
@@ -5905,20 +5926,20 @@ export default function App() {
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
               {/* ── Control Panel ── */}
-              <div className="bg-[#141414] text-[#E4E3E0] border border-[#E4E3E0]/10">
-                <div className="flex items-center justify-between px-6 py-4 border-b border-[#E4E3E0]/10 flex-wrap gap-3">
+              <div className="bg-white text-[#1d1d1f] border border-black/10">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-black/10 flex-wrap gap-3">
                   <div className="flex items-center gap-3">
-                    <Activity size={18} className="text-[#60A5FA]" />
-                    <h3 className="text-lg font-serif italic font-bold">Raw Deriv</h3>
-                    <span className="text-[9px] font-mono opacity-30 ml-2">Onset / peak / changepoint detection on raw R(B) — avoids differentiating noisy data</span>
+                    <Activity size={18} className="text-[#ff9500]" />
+                    <h3 className="text-lg font-semibold">Raw Deriv</h3>
+                    <span className="text-[11px] tabular-nums opacity-30 ml-2">Onset / peak / changepoint detection on raw R(B) — avoids differentiating noisy data</span>
                   </div>
                   <select
                     value={devSeriesKey || (allRawSeries[0] ? `${allRawSeries[0].fileName}::${allRawSeries[0].columnName}` : '')}
                     onChange={(e) => setDevSeriesKey(e.target.value)}
-                    className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[10px] px-3 py-1.5 focus:outline-none focus:border-[#60A5FA] cursor-pointer max-w-[320px]"
+                    className="bg-white border border-black/15 text-[#1d1d1f] tabular-nums text-[12px] px-3 py-1.5 focus:outline-none focus:border-[#ff9500] cursor-pointer max-w-[320px]"
                   >
                     {allRawSeries.map(s => (
-                      <option key={`${s.fileName}::${s.columnName}`} value={`${s.fileName}::${s.columnName}`} className="bg-[#141414]">
+                      <option key={`${s.fileName}::${s.columnName}`} value={`${s.fileName}::${s.columnName}`} className="bg-white">
                         {s.fileName} — {s.columnName} ({s.blm}°)
                       </option>
                     ))}
@@ -5926,18 +5947,18 @@ export default function App() {
                 </div>
 
                 {/* BLM filter row */}
-                <div className="flex items-start gap-4 px-6 py-3 border-b border-[#E4E3E0]/10">
+                <div className="flex items-start gap-4 px-6 py-3 border-b border-black/10">
                   <div className="flex items-center gap-1.5 pt-0.5 flex-none">
-                    <span className="text-[9px] font-mono uppercase opacity-40 mr-1">BLM</span>
-                    <button onClick={() => setActiveBlms(new Set(uniqueBlms))} className="px-1.5 py-0.5 font-mono text-[8px] uppercase border border-[#E4E3E0]/20 hover:bg-white/10">All</button>
-                    <button onClick={() => setActiveBlms(new Set())} className="px-1.5 py-0.5 font-mono text-[8px] uppercase border border-[#E4E3E0]/20 hover:bg-white/10">None</button>
+                    <span className="text-[11px] tabular-nums opacity-40 mr-1">BLM</span>
+                    <button onClick={() => setActiveBlms(new Set(uniqueBlms))} className="px-1.5 py-0.5 tabular-nums text-[12px] border border-black/20 hover:bg-black/5">All</button>
+                    <button onClick={() => setActiveBlms(new Set())} className="px-1.5 py-0.5 tabular-nums text-[12px] border border-black/20 hover:bg-black/5">None</button>
                   </div>
                   <div className="flex flex-wrap gap-1.5 max-h-16 overflow-y-auto">
                     {uniqueBlms.map((blm, idx) => (
                       <button
                         key={blm}
                         onClick={() => { const n = new Set(activeBlms); n.has(blm) ? n.delete(blm) : n.add(blm); setActiveBlms(n); }}
-                        className={`px-1.5 py-0.5 font-mono text-[8px] border transition-all ${activeBlms.has(blm) ? 'text-[#141414] border-transparent' : 'border-[#E4E3E0]/15 text-[#E4E3E0] opacity-35 hover:opacity-70'}`}
+                        className={`px-1.5 py-0.5 tabular-nums text-[12px] border transition-all ${activeBlms.has(blm) ? 'text-[#1d1d1f] border-transparent' : 'border-black/15 text-[#1d1d1f] opacity-35 hover:opacity-70'}`}
                         style={{ backgroundColor: activeBlms.has(blm) ? `hsl(${(idx * 137) % 360}, 55%, 55%)` : undefined }}
                       >
                         {blm}°
@@ -5947,8 +5968,8 @@ export default function App() {
                 </div>
 
                 {/* Mode selector */}
-                <div className="flex items-center gap-2 px-6 py-3 border-b border-[#E4E3E0]/10 flex-wrap">
-                  <span className="text-[8px] font-mono uppercase opacity-30 mr-1">Method</span>
+                <div className="flex items-center gap-2 px-6 py-3 border-b border-black/10 flex-wrap">
+                  <span className="text-[12px] tabular-nums opacity-30 mr-1">Method</span>
                   {([
                     ['onset', 'Onset', 'Fit a background polynomial, walk outward, flag the first sustained departure'],
                     ['peak', 'Peak', 'Fit a background polynomial, walk outward, flag where the departure peaks'],
@@ -5958,78 +5979,78 @@ export default function App() {
                       key={id}
                       onClick={() => setDevMode(id)}
                       title={title}
-                      className={`px-2.5 py-1 font-mono text-[9px] border transition-all ${devMode === id ? 'border-[#60A5FA]/60 text-[#60A5FA] bg-[#60A5FA]/10' : 'border-[#E4E3E0]/15 text-[#E4E3E0] opacity-60 hover:opacity-100'}`}
+                      className={`px-2.5 py-1 tabular-nums text-[11px] border transition-all ${devMode === id ? 'border-[#ff9500]/60 text-[#ff9500] bg-[#ff9500]/10' : 'border-black/15 text-[#1d1d1f] opacity-60 hover:opacity-100'}`}
                     >
                       {label}
                     </button>
                   ))}
-                  <button onClick={() => handleProcessAll()} className="flex items-center gap-1 px-2 py-1 font-mono text-[9px] border border-[#60A5FA]/40 text-[#60A5FA] hover:bg-[#60A5FA]/10 ml-3"><RefreshCw size={10} />Recalculate</button>
+                  <button onClick={() => handleProcessAll()} className="flex items-center gap-1 px-2 py-1 tabular-nums text-[11px] border border-[#ff9500]/40 text-[#ff9500] hover:bg-[#ff9500]/10 ml-3"><RefreshCw size={10} />Recalculate</button>
                 </div>
 
                 {/* Fit controls row */}
                 <div className="flex items-center gap-2 px-6 py-3 flex-wrap">
-                  <span className="text-[8px] font-mono uppercase opacity-30 mr-1">{devMode === 'changepoint' ? 'Search range' : 'Fit window'}</span>
-                  <input type="number" value={devFitMinB} onChange={(e) => setDevFitMinB(parseFloat(e.target.value) || 0)} className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[9px] w-12 px-1 py-1 text-center focus:outline-none focus:border-[#60A5FA]" />
-                  <span className="text-[9px] opacity-30">–</span>
-                  <input type="number" value={devFitMaxB} onChange={(e) => setDevFitMaxB(parseFloat(e.target.value) || 0)} className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[9px] w-12 px-1 py-1 text-center focus:outline-none focus:border-[#60A5FA]" />
-                  <span className="text-[9px] opacity-30">T</span>
+                  <span className="text-[12px] tabular-nums opacity-30 mr-1">{devMode === 'changepoint' ? 'Search range' : 'Fit window'}</span>
+                  <input type="number" value={devFitMinB} onChange={(e) => setDevFitMinB(parseFloat(e.target.value) || 0)} className="bg-white border border-black/15 text-[#1d1d1f] tabular-nums text-[11px] w-12 px-1 py-1 text-center focus:outline-none focus:border-[#ff9500]" />
+                  <span className="text-[11px] opacity-30">–</span>
+                  <input type="number" value={devFitMaxB} onChange={(e) => setDevFitMaxB(parseFloat(e.target.value) || 0)} className="bg-white border border-black/15 text-[#1d1d1f] tabular-nums text-[11px] w-12 px-1 py-1 text-center focus:outline-none focus:border-[#ff9500]" />
+                  <span className="text-[11px] opacity-30">T</span>
                   {devMode !== 'changepoint' && (
                     <>
-                      <span className="text-[8px] font-mono uppercase opacity-30 ml-3">Degree</span>
-                      <input type="number" min={1} max={8} value={devPolyDegree} onChange={(e) => setDevPolyDegree(Math.max(1, Math.min(8, parseInt(e.target.value) || 1)))} className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[9px] w-10 px-1 py-1 text-center focus:outline-none focus:border-[#60A5FA]" />
-                      <span className="text-[8px] font-mono uppercase opacity-30 ml-3">Threshold ×σ</span>
-                      <input type="number" step="0.5" value={devThresholdSigma} onChange={(e) => setDevThresholdSigma(parseFloat(e.target.value) || 0)} className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[9px] w-12 px-1 py-1 text-center focus:outline-none focus:border-[#60A5FA]" />
+                      <span className="text-[12px] tabular-nums opacity-30 ml-3">Degree</span>
+                      <input type="number" min={1} max={8} value={devPolyDegree} onChange={(e) => setDevPolyDegree(Math.max(1, Math.min(8, parseInt(e.target.value) || 1)))} className="bg-white border border-black/15 text-[#1d1d1f] tabular-nums text-[11px] w-10 px-1 py-1 text-center focus:outline-none focus:border-[#ff9500]" />
+                      <span className="text-[12px] tabular-nums opacity-30 ml-3">Threshold ×σ</span>
+                      <input type="number" step="0.5" value={devThresholdSigma} onChange={(e) => setDevThresholdSigma(parseFloat(e.target.value) || 0)} className="bg-white border border-black/15 text-[#1d1d1f] tabular-nums text-[11px] w-12 px-1 py-1 text-center focus:outline-none focus:border-[#ff9500]" />
                       <button
                         onClick={() => setDevDirection(d => d === 'increasing' ? 'decreasing' : 'increasing')}
                         title="Which side of the fit window to search for deviation"
-                        className="px-2 py-1 font-mono text-[9px] border border-[#E4E3E0]/15 hover:bg-white/10 ml-3"
+                        className="px-2 py-1 tabular-nums text-[11px] border border-black/15 hover:bg-black/5 ml-3"
                       >
                         Search B {devDirection === 'increasing' ? '↑ increasing' : '↓ decreasing'}
                       </button>
                     </>
                   )}
                   {devMode === 'changepoint' && devDiagnostic?.valid && devDiagnostic.changepoint && (
-                    <span className="text-[9px] font-mono ml-3">
-                      <span className="text-[#4ADE80]">onset {devDiagnostic.onsetB != null ? devDiagnostic.onsetB.toFixed(3) : devDiagnostic.changepoint.breakB.toFixed(3)} T</span>
-                      <span className="text-[#E4E3E0] opacity-30"> · </span>
-                      <span className="text-[#60A5FA]">bend center {devDiagnostic.changepoint.breakB.toFixed(3)} T</span>
-                      <span className="text-[#E4E3E0] opacity-30"> · slope {devDiagnostic.changepoint.leftSlope.toExponential(2)} → {devDiagnostic.changepoint.rightSlope.toExponential(2)} · improvement {(devDiagnostic.changepoint.improvement * 100).toFixed(1)}%</span>
+                    <span className="text-[11px] tabular-nums ml-3">
+                      <span className="text-[#28a745]">onset {devDiagnostic.onsetB != null ? devDiagnostic.onsetB.toFixed(3) : devDiagnostic.changepoint.breakB.toFixed(3)} T</span>
+                      <span className="text-[#1d1d1f] opacity-30"> · </span>
+                      <span className="text-[#ff9500]">bend center {devDiagnostic.changepoint.breakB.toFixed(3)} T</span>
+                      <span className="text-[#1d1d1f] opacity-30"> · slope {devDiagnostic.changepoint.leftSlope.toExponential(2)} → {devDiagnostic.changepoint.rightSlope.toExponential(2)} · improvement {(devDiagnostic.changepoint.improvement * 100).toFixed(1)}%</span>
                     </span>
                   )}
                 </div>
 
                 {devMode === 'changepoint' && devDiagnostic?.valid && devDiagnostic.changepointCandidates && devDiagnostic.changepointCandidates.length > 1 && (
-                  <div className="px-6 py-2.5 border-t border-[#E4E3E0]/10">
-                    <span className="text-[8px] font-mono uppercase opacity-30 mr-2">Other candidate breaks in this range</span>
+                  <div className="px-6 py-2.5 border-t border-black/10">
+                    <span className="text-[12px] tabular-nums opacity-30 mr-2">Other candidate breaks in this range</span>
                     {devDiagnostic.changepointCandidates
                       .filter(c => Math.abs(c.breakB - (devDiagnostic.changepoint?.breakB ?? NaN)) > 1e-9)
                       .map((c, i) => (
-                        <span key={i} className="text-[9px] font-mono text-[#E4E3E0] opacity-50 mr-3">
+                        <span key={i} className="text-[11px] tabular-nums text-[#1d1d1f] opacity-50 mr-3">
                           {c.breakB.toFixed(2)} T ({(c.improvement * 100).toFixed(0)}%)
                         </span>
                       ))}
-                    <span className="text-[8px] font-mono opacity-25 text-[#E4E3E0]">— if one of these looks like the bend you mean, narrow the search range around it</span>
+                    <span className="text-[12px] tabular-nums opacity-25 text-[#1d1d1f]">— if one of these looks like the bend you mean, narrow the search range around it</span>
                   </div>
                 )}
 
                 {/* Comparison method: plain smoothed-|dR/dB|-peak range (shared with the Peak Transition Field panel on Raw Data) */}
-                <div className="flex items-center gap-2 px-6 py-3 border-t border-[#E4E3E0]/10">
-                  <span className="text-[8px] font-mono uppercase opacity-30 mr-1">Compare vs dR/dB range</span>
-                  <input type="number" value={maxDerivMinB} onChange={(e) => setMaxDerivMinB(parseFloat(e.target.value) || 0)} className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[9px] w-12 px-1 py-1 text-center focus:outline-none focus:border-[#F27D26]" />
-                  <span className="text-[9px] opacity-30">–</span>
-                  <input type="number" value={maxDerivMaxB} onChange={(e) => setMaxDerivMaxB(parseFloat(e.target.value) || 0)} className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[9px] w-12 px-1 py-1 text-center focus:outline-none focus:border-[#F27D26]" />
-                  <span className="text-[9px] opacity-30">T</span>
-                  <span className="text-[8px] font-mono opacity-30 ml-2">— raw dR/dB, smoothed (window 7), peak taken as the transition field</span>
+                <div className="flex items-center gap-2 px-6 py-3 border-t border-black/10">
+                  <span className="text-[12px] tabular-nums opacity-30 mr-1">Compare vs dR/dB range</span>
+                  <input type="number" value={maxDerivMinB} onChange={(e) => setMaxDerivMinB(parseFloat(e.target.value) || 0)} className="bg-white border border-black/15 text-[#1d1d1f] tabular-nums text-[11px] w-12 px-1 py-1 text-center focus:outline-none focus:border-[#0071e3]" />
+                  <span className="text-[11px] opacity-30">–</span>
+                  <input type="number" value={maxDerivMaxB} onChange={(e) => setMaxDerivMaxB(parseFloat(e.target.value) || 0)} className="bg-white border border-black/15 text-[#1d1d1f] tabular-nums text-[11px] w-12 px-1 py-1 text-center focus:outline-none focus:border-[#0071e3]" />
+                  <span className="text-[11px] opacity-30">T</span>
+                  <span className="text-[12px] tabular-nums opacity-30 ml-2">— raw dR/dB, smoothed (window 7), peak taken as the transition field</span>
                 </div>
               </div>
 
               {/* ── 1. Single-series diagnostic: raw + fit, and residual ── */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-[#141414] text-[#E4E3E0] p-6 border border-[#E4E3E0]/10">
+                <div className="bg-white text-[#1d1d1f] p-6 border border-black/10 rounded-2xl">
                   <div className="flex justify-between items-start mb-4">
                     <div>
-                      <h4 className="text-[11px] font-mono uppercase tracking-widest opacity-50">{devMode === 'changepoint' ? 'Raw R(B) & Changepoint Fit' : 'Raw R(B) & Polynomial Fit'}</h4>
-                      <p className="text-[10px] font-mono mt-0.5 text-[#F27D26] truncate max-w-[280px]">
+                      <h4 className="text-[11px] tabular-nums opacity-50">{devMode === 'changepoint' ? 'Raw R(B) & Changepoint Fit' : 'Raw R(B) & Polynomial Fit'}</h4>
+                      <p className="text-[12px] tabular-nums mt-0.5 text-[#0071e3] truncate max-w-[280px]">
                         {devDiagnostic ? `${devDiagnostic.fileName} · ${devDiagnostic.columnName} (${devDiagnostic.blm}°)` : '—'}
                       </p>
                     </div>
@@ -6037,38 +6058,38 @@ export default function App() {
                   <div className="h-[320px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <ComposedChart margin={{ bottom: 20, left: 10 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#333" />
-                        <XAxis dataKey="b" type="number" domain={['auto', 'auto']} tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }} label={{ value: 'B-Field (T)', position: 'insideBottom', offset: 10, fill: '#E4E3E0', fontSize: 9 }} />
-                        <YAxis tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }} label={{ value: devDiagnostic?.columnName ?? 'R', angle: -90, position: 'insideLeft', fill: '#E4E3E0', fontSize: 9 }} />
-                        <Tooltip contentStyle={{ backgroundColor: '#141414', border: '1px solid #333', fontSize: '9px', color: '#E4E3E0' }} />
-                        <Legend wrapperStyle={{ fontSize: '9px', fontFamily: 'monospace' }} />
-                        <ReferenceArea x1={devFitMinB} x2={devFitMaxB} fill="#4ADE80" fillOpacity={0.08} stroke="#4ADE80" strokeOpacity={0.25} />
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5ea" />
+                        <XAxis dataKey="b" type="number" domain={['auto', 'auto']} tick={{ fontSize: 9, fontFamily: 'inherit', fill: '#6e6e73' }} label={{ value: 'B-Field (T)', position: 'insideBottom', offset: 10, fill: '#6e6e73', fontSize: 9 }} />
+                        <YAxis tick={{ fontSize: 9, fontFamily: 'inherit', fill: '#6e6e73' }} label={{ value: devDiagnostic?.columnName ?? 'R', angle: -90, position: 'insideLeft', fill: '#6e6e73', fontSize: 9 }} />
+                        <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '9px', color: '#1d1d1f' }} />
+                        <Legend wrapperStyle={{ fontSize: '9px', fontFamily: 'inherit' }} />
+                        <ReferenceArea x1={devFitMinB} x2={devFitMaxB} fill="#28a745" fillOpacity={0.08} stroke="#28a745" strokeOpacity={0.25} />
                         {devDiagnostic?.valid && devDiagnostic.detectedB != null && (
                           <ReferenceLine
                             x={devDiagnostic.detectedB}
-                            stroke={devMode === 'changepoint' ? '#4ADE80' : '#60A5FA'}
+                            stroke={devMode === 'changepoint' ? '#28a745' : '#ff9500'}
                             strokeDasharray="4 4"
-                            label={{ value: `${devMode === 'changepoint' ? 'onset' : 'poly'} ${devDiagnostic.detectedB.toFixed(3)} T`, position: 'top', fill: devMode === 'changepoint' ? '#4ADE80' : '#60A5FA', fontSize: 9 }}
+                            label={{ value: `${devMode === 'changepoint' ? 'onset' : 'poly'} ${devDiagnostic.detectedB.toFixed(3)} T`, position: 'top', fill: devMode === 'changepoint' ? '#28a745' : '#ff9500', fontSize: 9 }}
                           />
                         )}
                         {devMode === 'changepoint' && devDiagnostic?.valid && devDiagnostic.changepoint && devDiagnostic.onsetB != null && Math.abs(devDiagnostic.changepoint.breakB - devDiagnostic.onsetB) > 1e-9 && (
-                          <ReferenceLine x={devDiagnostic.changepoint.breakB} stroke="#60A5FA" strokeDasharray="4 4" label={{ value: `bend center ${devDiagnostic.changepoint.breakB.toFixed(3)} T`, position: 'insideTopLeft', fill: '#60A5FA', fontSize: 9 }} />
+                          <ReferenceLine x={devDiagnostic.changepoint.breakB} stroke="#ff9500" strokeDasharray="4 4" label={{ value: `bend center ${devDiagnostic.changepoint.breakB.toFixed(3)} T`, position: 'insideTopLeft', fill: '#ff9500', fontSize: 9 }} />
                         )}
                         {devMode === 'changepoint' && devDiagnostic?.valid && devDiagnostic.changepointCandidates?.filter(c => Math.abs(c.breakB - (devDiagnostic.changepoint?.breakB ?? NaN)) > 1e-9).map((c, i) => (
-                          <ReferenceLine key={i} x={c.breakB} stroke="#60A5FA" strokeOpacity={0.35} strokeDasharray="2 3" label={{ value: `${c.breakB.toFixed(2)}T`, position: 'insideBottomLeft', fill: '#60A5FA', fillOpacity: 0.6, fontSize: 8 }} />
+                          <ReferenceLine key={i} x={c.breakB} stroke="#ff9500" strokeOpacity={0.35} strokeDasharray="2 3" label={{ value: `${c.breakB.toFixed(2)}T`, position: 'insideBottomLeft', fill: '#ff9500', fillOpacity: 0.6, fontSize: 8 }} />
                         ))}
                         {devDiagnostic?.derivPeakB != null && (
-                          <ReferenceLine x={devDiagnostic.derivPeakB} stroke="#F27D26" strokeDasharray="4 4" strokeOpacity={devDiagnostic.derivPeakPinned ? 0.35 : 1} label={{ value: devDiagnostic.derivPeakPinned ? `dR/dB: no peak (edge)` : `dR/dB ${devDiagnostic.derivPeakB.toFixed(3)} T`, position: 'insideTopRight', fill: '#F27D26', fontSize: 9 }} />
+                          <ReferenceLine x={devDiagnostic.derivPeakB} stroke="#0071e3" strokeDasharray="4 4" strokeOpacity={devDiagnostic.derivPeakPinned ? 0.35 : 1} label={{ value: devDiagnostic.derivPeakPinned ? `dR/dB: no peak (edge)` : `dR/dB ${devDiagnostic.derivPeakB.toFixed(3)} T`, position: 'insideTopRight', fill: '#0071e3', fontSize: 9 }} />
                         )}
-                        <Line data={devDiagnostic?.rawForChart ?? []} dataKey="val" name="Raw R(B)" stroke="#E4E3E0" strokeWidth={1} dot={false} isAnimationActive={false} />
+                        <Line data={devDiagnostic?.rawForChart ?? []} dataKey="val" name="Raw R(B)" stroke="#1d1d1f" strokeWidth={1} dot={false} isAnimationActive={false} />
                         {devDiagnostic?.valid && (
-                          <Line data={devDiagnostic.fitCurve} dataKey="fit" name={devMode === 'changepoint' ? 'Piecewise linear fit' : `Poly fit (deg ${devPolyDegree})`} stroke="#F27D26" strokeWidth={2} strokeDasharray="6 3" dot={false} isAnimationActive={false} />
+                          <Line data={devDiagnostic.fitCurve} dataKey="fit" name={devMode === 'changepoint' ? 'Piecewise linear fit' : `Poly fit (deg ${devPolyDegree})`} stroke="#0071e3" strokeWidth={2} strokeDasharray="6 3" dot={false} isAnimationActive={false} />
                         )}
                       </ComposedChart>
                     </ResponsiveContainer>
                   </div>
                   {devDiagnostic && !devDiagnostic.valid && (
-                    <p className="mt-2 text-[9px] font-mono text-[#F27D26]/60">
+                    <p className="mt-2 text-[11px] tabular-nums text-[#0071e3]/60">
                       {devMode === 'changepoint'
                         ? 'Not enough points in the search range for this series — widen the range.'
                         : 'Not enough points in the fit window or search arm for this series — widen the fit range, extend the sweep, or lower the degree.'}
@@ -6076,22 +6097,22 @@ export default function App() {
                   )}
                 </div>
 
-                <div className="bg-[#141414] text-[#E4E3E0] p-6 border border-[#E4E3E0]/10">
+                <div className="bg-white text-[#1d1d1f] p-6 border border-black/10 rounded-2xl">
                   <div className="flex justify-between items-start mb-4">
                     <div>
-                      <h4 className="text-[11px] font-mono uppercase tracking-widest opacity-50">Method Comparison: Residual vs Smoothed |dR/dB|</h4>
-                      <p className="text-[10px] font-mono mt-0.5">
-                        <span className="text-[#60A5FA]">
+                      <h4 className="text-[11px] tabular-nums opacity-50">Method Comparison: Residual vs Smoothed |dR/dB|</h4>
+                      <p className="text-[12px] tabular-nums mt-0.5">
+                        <span className="text-[#ff9500]">
                           {devDiagnostic?.valid && typeof devDiagnostic.sigma === 'number'
                             ? `poly σ=${devDiagnostic.sigma.toExponential(2)}`
                             : devDiagnostic?.valid && devDiagnostic.changepoint
                               ? `changepoint improvement=${(devDiagnostic.changepoint.improvement * 100).toFixed(1)}%`
                               : '—'}
                         </span>
-                        <span className="text-[#E4E3E0] opacity-30"> · </span>
-                        <span className="text-[#F27D26]">dR/dB {maxDerivMinB}–{maxDerivMaxB} T</span>
+                        <span className="text-[#1d1d1f] opacity-30"> · </span>
+                        <span className="text-[#0071e3]">dR/dB {maxDerivMinB}–{maxDerivMaxB} T</span>
                         {devDiagnostic?.derivPeakPinned && (
-                          <span className="text-[#F27D26] opacity-70"> ⚠ peak sits at the range edge — |dR/dB| was still climbing there, so this isn't a real interior peak. Widen the dR/dB range.</span>
+                          <span className="text-[#0071e3] opacity-70"> ⚠ peak sits at the range edge — |dR/dB| was still climbing there, so this isn't a real interior peak. Widen the dR/dB range.</span>
                         )}
                       </p>
                     </div>
@@ -6099,31 +6120,31 @@ export default function App() {
                   <div className="h-[320px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <ComposedChart margin={{ bottom: 20, left: 10, right: 10 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#333" />
-                        <XAxis dataKey="b" type="number" domain={['auto', 'auto']} tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }} label={{ value: 'B-Field (T)', position: 'insideBottom', offset: 10, fill: '#E4E3E0', fontSize: 9 }} />
-                        <YAxis yAxisId="left" tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#60A5FA' }} label={{ value: devMode === 'changepoint' ? 'Residual (piecewise)' : 'Residual (poly)', angle: -90, position: 'insideLeft', fill: '#60A5FA', fontSize: 9 }} />
-                        <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#F27D26' }} label={{ value: '|dR/dB| (smoothed)', angle: 90, position: 'insideRight', fill: '#F27D26', fontSize: 9 }} />
-                        <Tooltip contentStyle={{ backgroundColor: '#141414', border: '1px solid #333', fontSize: '9px', color: '#E4E3E0' }} />
-                        <Legend wrapperStyle={{ fontSize: '9px', fontFamily: 'monospace' }} />
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5ea" />
+                        <XAxis dataKey="b" type="number" domain={['auto', 'auto']} tick={{ fontSize: 9, fontFamily: 'inherit', fill: '#6e6e73' }} label={{ value: 'B-Field (T)', position: 'insideBottom', offset: 10, fill: '#6e6e73', fontSize: 9 }} />
+                        <YAxis yAxisId="left" tick={{ fontSize: 9, fontFamily: 'inherit', fill: '#ff9500' }} label={{ value: devMode === 'changepoint' ? 'Residual (piecewise)' : 'Residual (poly)', angle: -90, position: 'insideLeft', fill: '#ff9500', fontSize: 9 }} />
+                        <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 9, fontFamily: 'inherit', fill: '#0071e3' }} label={{ value: '|dR/dB| (smoothed)', angle: 90, position: 'insideRight', fill: '#0071e3', fontSize: 9 }} />
+                        <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '9px', color: '#1d1d1f' }} />
+                        <Legend wrapperStyle={{ fontSize: '9px', fontFamily: 'inherit' }} />
                         {devDiagnostic?.valid && typeof devDiagnostic.cutoff === 'number' && (
                           <>
-                            <ReferenceLine yAxisId="left" y={devDiagnostic.cutoff} stroke="#60A5FA" strokeDasharray="3 3" strokeOpacity={0.4} />
-                            <ReferenceLine yAxisId="left" y={-devDiagnostic.cutoff} stroke="#60A5FA" strokeDasharray="3 3" strokeOpacity={0.4} />
+                            <ReferenceLine yAxisId="left" y={devDiagnostic.cutoff} stroke="#ff9500" strokeDasharray="3 3" strokeOpacity={0.4} />
+                            <ReferenceLine yAxisId="left" y={-devDiagnostic.cutoff} stroke="#ff9500" strokeDasharray="3 3" strokeOpacity={0.4} />
                           </>
                         )}
-                        {devDiagnostic?.valid && devDiagnostic.detectedB != null && <ReferenceLine x={devDiagnostic.detectedB} stroke={devMode === 'changepoint' ? '#4ADE80' : '#60A5FA'} strokeDasharray="4 4" />}
-                        {devDiagnostic?.derivPeakB != null && <ReferenceLine x={devDiagnostic.derivPeakB} stroke="#F27D26" strokeDasharray="4 4" strokeOpacity={devDiagnostic.derivPeakPinned ? 0.35 : 1} />}
+                        {devDiagnostic?.valid && devDiagnostic.detectedB != null && <ReferenceLine x={devDiagnostic.detectedB} stroke={devMode === 'changepoint' ? '#28a745' : '#ff9500'} strokeDasharray="4 4" />}
+                        {devDiagnostic?.derivPeakB != null && <ReferenceLine x={devDiagnostic.derivPeakB} stroke="#0071e3" strokeDasharray="4 4" strokeOpacity={devDiagnostic.derivPeakPinned ? 0.35 : 1} />}
                         {devDiagnostic?.valid && devMode !== 'changepoint' && (
-                          <Line yAxisId="left" data={devDiagnostic.residualChart} dataKey="residual" name="Residual (raw)" stroke="#60A5FA" strokeOpacity={0.25} strokeWidth={1} dot={false} isAnimationActive={false} />
+                          <Line yAxisId="left" data={devDiagnostic.residualChart} dataKey="residual" name="Residual (raw)" stroke="#ff9500" strokeOpacity={0.25} strokeWidth={1} dot={false} isAnimationActive={false} />
                         )}
                         {devDiagnostic?.valid && (
-                          <Line yAxisId="left" data={devDiagnostic.residualChart} dataKey="smoothed" name={devMode === 'changepoint' ? 'Residual (piecewise)' : 'Residual (poly, smoothed)'} stroke="#60A5FA" strokeWidth={2} dot={false} isAnimationActive={false} />
+                          <Line yAxisId="left" data={devDiagnostic.residualChart} dataKey="smoothed" name={devMode === 'changepoint' ? 'Residual (piecewise)' : 'Residual (poly, smoothed)'} stroke="#ff9500" strokeWidth={2} dot={false} isAnimationActive={false} />
                         )}
-                        <Line yAxisId="right" data={devDiagnostic?.derivativeChart ?? []} dataKey="deriv" name="|dR/dB| (smoothed)" stroke="#F27D26" strokeWidth={2} dot={false} isAnimationActive={false} />
+                        <Line yAxisId="right" data={devDiagnostic?.derivativeChart ?? []} dataKey="deriv" name="|dR/dB| (smoothed)" stroke="#0071e3" strokeWidth={2} dot={false} isAnimationActive={false} />
                       </ComposedChart>
                     </ResponsiveContainer>
                   </div>
-                  <p className="mt-2 text-[8px] font-mono opacity-30 text-[#E4E3E0] leading-relaxed">
+                  <p className="mt-2 text-[12px] tabular-nums opacity-30 text-[#1d1d1f] leading-relaxed">
                     {devMode === 'changepoint'
                       ? "Blue = residual against the two-line changepoint fit (flat near zero on each side, by construction — a real kink shows up as the field where the residual starts climbing away from zero). The green onset line is the first field where that climb becomes sustained; the blue bend-center line (where shown) is the two-line model's best-fit meeting point, usually a bit further along a gradual transition. Orange = plain derivative method — raw dR/dB, smoothed, peak taken as the transition field. Where a curve never turns over within the measured range, dR/dB has no real peak to find (it just pins to whichever edge you set) — the changepoint/onset read is the more reliable one in that case."
                       : "Blue = polynomial-residual method (this series' search arm). Orange = plain derivative method — raw dR/dB, smoothed with the same window-7 moving average, peak taken as the transition field. Point-to-point noise shows up as jitter in the thin, unsmoothed blue trace; differentiating it first (orange) amplifies that jitter before smoothing ever gets a chance to average it out, which is why the orange curve is usually the noisier of the two."}
@@ -6132,51 +6153,51 @@ export default function App() {
               </div>
 
               {/* ── 2. Deviation field vs BLM, across every series — both methods overlaid ── */}
-              <div className="bg-[#141414] text-[#E4E3E0] p-6 border border-[#E4E3E0]/10">
+              <div className="bg-white text-[#1d1d1f] p-6 border border-black/10 rounded-2xl">
                 <div className="flex justify-between items-center mb-4">
                   <div>
-                    <h4 className="text-[11px] font-mono uppercase tracking-widest opacity-50">Transition Field vs BLM — Both Methods</h4>
-                    <p className="text-[10px] font-mono mt-0.5">
-                      <span className={devMode === 'changepoint' ? 'text-[#4ADE80]' : 'text-[#60A5FA]'}>◆ {devMode === 'onset' ? 'Polynomial onset' : devMode === 'peak' ? 'Polynomial peak' : 'Changepoint onset'}</span>
-                      <span className="text-[#E4E3E0] opacity-30"> vs </span>
-                      <span className="text-[#F27D26]">★ Smoothed dR/dB peak</span>
+                    <h4 className="text-[11px] tabular-nums opacity-50">Transition Field vs BLM — Both Methods</h4>
+                    <p className="text-[12px] tabular-nums mt-0.5">
+                      <span className={devMode === 'changepoint' ? 'text-[#28a745]' : 'text-[#ff9500]'}>◆ {devMode === 'onset' ? 'Polynomial onset' : devMode === 'peak' ? 'Polynomial peak' : 'Changepoint onset'}</span>
+                      <span className="text-[#1d1d1f] opacity-30"> vs </span>
+                      <span className="text-[#0071e3]">★ Smoothed dR/dB peak</span>
                     </p>
                   </div>
-                  <button onClick={() => { const filtered = devComparisonRows.filter(d => activeBlms.has(d.blm)); downloadCSV("BLM(°),PrimaryField(T),DerivField(T),FileName,Column\n" + filtered.map(d => `${d.blm},${d.polyB ?? ''},${d.derivB ?? ''},${d.fileName},${d.columnName}`).join('\n'), `transition_field_comparison_vs_blm.csv`); }} className="px-2.5 py-1 font-mono text-[8px] uppercase border border-[#E4E3E0]/15 hover:bg-white/5 flex items-center gap-1"><Download size={9} />CSV</button>
+                  <button onClick={() => { const filtered = devComparisonRows.filter(d => activeBlms.has(d.blm)); downloadCSV("BLM(°),PrimaryField(T),DerivField(T),FileName,Column\n" + filtered.map(d => `${d.blm},${d.polyB ?? ''},${d.derivB ?? ''},${d.fileName},${d.columnName}`).join('\n'), `transition_field_comparison_vs_blm.csv`); }} className="px-2.5 py-1 tabular-nums text-[12px] border border-black/15 hover:bg-black/5 flex items-center gap-1"><Download size={9} />CSV</button>
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   <div className="lg:col-span-2 h-[320px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <ScatterChart>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#222" />
-                        <XAxis dataKey="x" type="number" name="BLM" tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }} label={{ value: 'BLM (°)', position: 'insideBottom', offset: 10, fill: '#E4E3E0', fontSize: 9 }} />
-                        <YAxis dataKey="y" name="B deviation" tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }} label={{ value: 'B (T)', angle: -90, position: 'insideLeft', fill: '#E4E3E0', fontSize: 9 }} />
-                        <Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ backgroundColor: '#141414', border: '1px solid #333', fontSize: '9px', color: '#E4E3E0' }} />
-                        <Legend wrapperStyle={{ fontSize: '9px', fontFamily: 'monospace' }} />
-                        <Scatter name={devMode === 'onset' ? 'Polynomial onset' : devMode === 'peak' ? 'Polynomial peak' : 'Changepoint onset'} data={devPlotData.filter(d => activeBlms.has(d.x))} fill={devMode === 'changepoint' ? '#4ADE80' : '#60A5FA'} shape="diamond" isAnimationActive={false} />
-                        <Scatter name="Smoothed dR/dB peak" data={maxDerivPlotData.filter(d => activeBlms.has(d.x))} fill="#F27D26" shape="star" isAnimationActive={false} />
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5ea" />
+                        <XAxis dataKey="x" type="number" name="BLM" tick={{ fontSize: 9, fontFamily: 'inherit', fill: '#6e6e73' }} label={{ value: 'BLM (°)', position: 'insideBottom', offset: 10, fill: '#6e6e73', fontSize: 9 }} />
+                        <YAxis dataKey="y" name="B deviation" tick={{ fontSize: 9, fontFamily: 'inherit', fill: '#6e6e73' }} label={{ value: 'B (T)', angle: -90, position: 'insideLeft', fill: '#6e6e73', fontSize: 9 }} />
+                        <Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '9px', color: '#1d1d1f' }} />
+                        <Legend wrapperStyle={{ fontSize: '9px', fontFamily: 'inherit' }} />
+                        <Scatter name={devMode === 'onset' ? 'Polynomial onset' : devMode === 'peak' ? 'Polynomial peak' : 'Changepoint onset'} data={devPlotData.filter(d => activeBlms.has(d.x))} fill={devMode === 'changepoint' ? '#28a745' : '#ff9500'} shape="diamond" isAnimationActive={false} />
+                        <Scatter name="Smoothed dR/dB peak" data={maxDerivPlotData.filter(d => activeBlms.has(d.x))} fill="#0071e3" shape="star" isAnimationActive={false} />
                       </ScatterChart>
                     </ResponsiveContainer>
                   </div>
-                  <div className="border border-[#E4E3E0]/10 p-3 overflow-hidden flex flex-col h-[320px]">
-                    <h4 className="text-[9px] font-mono uppercase opacity-40 mb-2 text-[#E4E3E0]">Data</h4>
+                  <div className="border border-black/10 p-3 overflow-hidden flex flex-col h-[320px]">
+                    <h4 className="text-[11px] tabular-nums opacity-40 mb-2 text-[#1d1d1f]">Data</h4>
                     <div className="flex-1 overflow-auto">
                       <table className="w-full text-left border-collapse">
-                        <thead className="sticky top-0 bg-[#141414] z-10">
-                          <tr className="border-b border-[#E4E3E0]/20">
-                            <th className="p-1 text-[9px] font-mono uppercase opacity-60 text-[#E4E3E0]">BLM</th>
-                            <th className={`p-1 text-[9px] font-mono uppercase opacity-60 ${devMode === 'changepoint' ? 'text-[#4ADE80]' : 'text-[#60A5FA]'}`}>{devMode === 'changepoint' ? 'Onset (T)' : 'Poly (T)'}</th>
-                            <th className="p-1 text-[9px] font-mono uppercase opacity-60 text-[#F27D26]">dR/dB (T)</th>
-                            <th className="p-1 text-[9px] font-mono uppercase opacity-60 text-[#E4E3E0]">Column</th>
+                        <thead className="sticky top-0 bg-white z-10">
+                          <tr className="border-b border-black/20">
+                            <th className="p-1 text-[11px] tabular-nums opacity-60 text-[#1d1d1f]">BLM</th>
+                            <th className={`p-1 text-[11px] tabular-nums opacity-60 ${devMode === 'changepoint' ? 'text-[#28a745]' : 'text-[#ff9500]'}`}>{devMode === 'changepoint' ? 'Onset (T)' : 'Poly (T)'}</th>
+                            <th className="p-1 text-[11px] tabular-nums opacity-60 text-[#0071e3]">dR/dB (T)</th>
+                            <th className="p-1 text-[11px] tabular-nums opacity-60 text-[#1d1d1f]">Column</th>
                           </tr>
                         </thead>
                         <tbody>
                           {devComparisonRows.filter(d => activeBlms.has(d.blm)).map((d, idx) => (
-                            <tr key={idx} className="border-b border-[#E4E3E0]/5 hover:bg-white/5">
-                              <td className="p-1 text-[9px] font-mono text-[#E4E3E0]">{d.blm}°</td>
-                              <td className={`p-1 text-[9px] font-mono ${devMode === 'changepoint' ? 'text-[#4ADE80]' : 'text-[#60A5FA]'}`}>{d.polyB != null ? d.polyB.toFixed(4) : '—'}</td>
-                              <td className="p-1 text-[9px] font-mono text-[#F27D26]">{d.derivB != null ? d.derivB.toFixed(4) : '—'}</td>
-                              <td className="p-1 text-[9px] font-mono text-[#E4E3E0] opacity-60 truncate max-w-[70px]">{d.columnName}</td>
+                            <tr key={idx} className="border-b border-black/5 hover:bg-black/5">
+                              <td className="p-1 text-[11px] tabular-nums text-[#1d1d1f]">{d.blm}°</td>
+                              <td className={`p-1 text-[11px] tabular-nums ${devMode === 'changepoint' ? 'text-[#28a745]' : 'text-[#ff9500]'}`}>{d.polyB != null ? d.polyB.toFixed(4) : '—'}</td>
+                              <td className="p-1 text-[11px] tabular-nums text-[#0071e3]">{d.derivB != null ? d.derivB.toFixed(4) : '—'}</td>
+                              <td className="p-1 text-[11px] tabular-nums text-[#1d1d1f] opacity-60 truncate max-w-[70px]">{d.columnName}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -6184,7 +6205,7 @@ export default function App() {
                     </div>
                   </div>
                 </div>
-                <p className="mt-3 text-[8px] font-mono opacity-30 text-[#E4E3E0] leading-relaxed">
+                <p className="mt-3 text-[12px] tabular-nums opacity-30 text-[#1d1d1f] leading-relaxed">
                   {devMode === 'changepoint'
                     ? <>Changepoint onset: scans {devFitMinB}–{devFitMaxB} T for the single breakpoint that minimizes total squared error when split into two independently-fit lines (kept only when it reduces error by more than 2% over one straight line). The pre-break line is then extrapolated forward, and the reported field is the first point where the data sustains a departure from it by more than {devThresholdSigma}σ for 5 consecutive points — i.e. where the bend actually starts, not the two-line model's best-fit meeting point. </>
                     : <>Polynomial method: fits a degree-{devPolyDegree} polynomial to R(B) over {devFitMinB}–{devFitMaxB} T, walks B {devDirection === 'increasing' ? 'upward from the top of that window' : 'downward from the bottom of that window'}, and {devMode === 'onset' ? `flags the first field where the smoothed residual (window 7) stays above ${devThresholdSigma}σ for 5 consecutive points` : `flags the field where the smoothed residual peaks above ${devThresholdSigma}σ`}. </>}
@@ -6197,25 +6218,25 @@ export default function App() {
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
               {/* ── Control Panel ── */}
-              <div className="bg-[#141414] text-[#E4E3E0] border border-[#E4E3E0]/10">
+              <div className="bg-white text-[#1d1d1f] border border-black/10">
                 <div className="flex items-center justify-between px-6 py-4">
                   <div className="flex items-center gap-3">
-                    <Gauge size={18} className="text-[#F27D26]" />
-                    <h3 className="text-lg font-serif italic font-bold">Torque Analysis</h3>
-                    <span className="text-[9px] font-mono opacity-30 ml-2">{files.length} file{files.length !== 1 ? 's' : ''} · {uniqueBlms.length} angles</span>
+                    <Gauge size={18} className="text-[#0071e3]" />
+                    <h3 className="text-lg font-semibold">Torque Analysis</h3>
+                    <span className="text-[11px] tabular-nums opacity-30 ml-2">{files.length} file{files.length !== 1 ? 's' : ''} · {uniqueBlms.length} angles</span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-[9px] font-mono uppercase opacity-40">Column</span>
+                    <span className="text-[11px] tabular-nums opacity-40">Column</span>
                     <select
                       value={selectedRawColumn}
                       onChange={(e) => setSelectedRawColumn(e.target.value)}
-                      className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[10px] px-3 py-1.5 focus:outline-none focus:border-[#F27D26] cursor-pointer"
+                      className="bg-white border border-black/15 text-[#1d1d1f] tabular-nums text-[12px] px-3 py-1.5 focus:outline-none focus:border-[#0071e3] cursor-pointer"
                     >
-                      <option value="" className="bg-[#141414]">— select column —</option>
-                      <optgroup label="Prefixes" className="bg-[#141414]">
+                      <option value="" className="bg-white">— select column —</option>
+                      <optgroup label="Prefixes" className="bg-white">
                         {prefixes.map(p => <option key={p} value={p}>{p} (all)</option>)}
                       </optgroup>
-                      <optgroup label="Columns" className="bg-[#141414]">
+                      <optgroup label="Columns" className="bg-white">
                         {files[selectedFileIndex]?.columns.map(c => <option key={c} value={c}>{c}</option>)}
                       </optgroup>
                     </select>
@@ -6226,28 +6247,28 @@ export default function App() {
               <div className="grid grid-cols-1 gap-6">
 
                 {/* ── 1. Field-Sweep Decomposition ── */}
-                <div className="bg-[#141414] text-[#E4E3E0] p-6 border border-[#E4E3E0]/10">
+                <div className="bg-white text-[#1d1d1f] p-6 border border-black/10 rounded-2xl">
                   <div className="flex justify-between items-start mb-4">
                     <div>
-                      <h4 className="text-[11px] font-mono uppercase tracking-widest opacity-50">Field-Sweep Decomposition</h4>
-                      <p className="text-[10px] font-mono mt-0.5 text-[#F27D26]">τ(H) = a·H + b·H² + c·H³</p>
+                      <h4 className="text-[11px] tabular-nums opacity-50">Field-Sweep Decomposition</h4>
+                      <p className="text-[12px] tabular-nums mt-0.5 text-[#0071e3]">τ(H) = a·H + b·H² + c·H³</p>
                     </div>
                     <div className="flex items-center gap-3 flex-wrap justify-end">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[8px] font-mono opacity-40">H_sf limit</span>
+                        <span className="text-[12px] tabular-nums opacity-40">H_sf limit</span>
                         <input type="number" step="0.5" value={tauHsfLimit}
                           onChange={e => setTauHsfLimit(parseFloat(e.target.value) || 10)}
-                          className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[9px] w-14 px-1.5 py-0.5 text-center focus:outline-none focus:border-[#F27D26]" />
-                        <span className="text-[8px] font-mono opacity-30">T</span>
+                          className="bg-white border border-black/15 text-[#1d1d1f] tabular-nums text-[11px] w-14 px-1.5 py-0.5 text-center focus:outline-none focus:border-[#0071e3]" />
+                        <span className="text-[12px] tabular-nums opacity-30">T</span>
                       </div>
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[8px] font-mono opacity-40">Threshold</span>
+                        <span className="text-[12px] tabular-nums opacity-40">Threshold</span>
                         <input type="number" step="0.01" value={tauResidThreshold}
                           onChange={e => setTauResidThreshold(parseFloat(e.target.value) || 0.05)}
-                          className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[9px] w-14 px-1.5 py-0.5 text-center focus:outline-none focus:border-[#F27D26]" />
+                          className="bg-white border border-black/15 text-[#1d1d1f] tabular-nums text-[11px] w-14 px-1.5 py-0.5 text-center focus:outline-none focus:border-[#0071e3]" />
                       </div>
-                      <div className="flex items-center gap-1.5 border-l border-[#E4E3E0]/10 pl-3">
-                        <span className="text-[8px] font-mono opacity-40">Plot</span>
+                      <div className="flex items-center gap-1.5 border-l border-black/10 pl-3">
+                        <span className="text-[12px] tabular-nums opacity-40">Plot</span>
                         {(['fast', 'full'] as const).map(mode => (
                           <button
                             key={mode}
@@ -6255,10 +6276,10 @@ export default function App() {
                             title={mode === 'fast'
                               ? `Draw ~${SWEEP_PLOT_MAX} points per angle (min/max per bucket — same envelope). Exports stay full resolution.`
                               : 'Draw every raw point. Accurate but slow when many angles are loaded.'}
-                            className={`px-1.5 py-0.5 font-mono text-[8px] uppercase border transition-all ${sweepDensity === mode ? 'border-[#F27D26] text-[#F27D26] bg-[#F27D26]/10' : 'border-[#E4E3E0]/15 opacity-40 hover:opacity-70'}`}
+                            className={`px-1.5 py-0.5 tabular-nums text-[12px] border transition-all ${sweepDensity === mode ? 'border-[#0071e3] text-[#0071e3] bg-[#0071e3]/10' : 'border-black/15 opacity-40 hover:opacity-70'}`}
                           >{mode}</button>
                         ))}
-                        <span className="text-[8px] font-mono opacity-30 ml-0.5">
+                        <span className="text-[12px] tabular-nums opacity-30 ml-0.5">
                           {fieldSweepPlot.drawn.toLocaleString()}
                           {fieldSweepPlot.drawn !== fieldSweepPlot.total && ` / ${fieldSweepPlot.total.toLocaleString()}`} pts
                         </span>
@@ -6268,19 +6289,19 @@ export default function App() {
 
                   {fieldSweepByAngle.length > 0 ? (<>
                     {/* τ/H vs H */}
-                    <p className="text-[9px] font-mono opacity-40 mb-1">τ/H vs H — intercept → a (spontaneous), slope → b (χ anisotropy)</p>
+                    <p className="text-[11px] tabular-nums opacity-40 mb-1">τ/H vs H — intercept → a (spontaneous), slope → b (χ anisotropy)</p>
                     <div className="h-[320px] w-full mb-6">
                       <ResponsiveContainer width="100%" height="100%">
                         <ComposedChart margin={{ bottom: 20, left: 10, right: 10 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#222" />
-                          <XAxis dataKey="h" type="number" tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                            label={{ value: 'H (T)', position: 'insideBottom', offset: 10, fill: '#E4E3E0', fontSize: 9 }} />
-                          <YAxis dataKey="v" type="number" tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                            label={{ value: 'τ/H', angle: -90, position: 'insideLeft', fill: '#E4E3E0', fontSize: 9 }}
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5ea" />
+                          <XAxis dataKey="h" type="number" tick={{ fontSize: 9, fontFamily: 'inherit', fill: '#6e6e73' }}
+                            label={{ value: 'H (T)', position: 'insideBottom', offset: 10, fill: '#6e6e73', fontSize: 9 }} />
+                          <YAxis dataKey="v" type="number" tick={{ fontSize: 9, fontFamily: 'inherit', fill: '#6e6e73' }}
+                            label={{ value: 'τ/H', angle: -90, position: 'insideLeft', fill: '#6e6e73', fontSize: 9 }}
                             tickFormatter={(v: number) => v.toExponential(1)} width={60} />
-                          <Tooltip contentStyle={{ backgroundColor: '#141414', border: '1px solid #333', fontSize: '9px', color: '#E4E3E0' }}
+                          <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '9px', color: '#1d1d1f' }}
                             formatter={(v: any) => [typeof v === 'number' ? v.toExponential(4) : v]} />
-                          <Legend wrapperStyle={{ paddingTop: '16px', fontSize: '9px', fontFamily: 'monospace' }} />
+                          <Legend wrapperStyle={{ paddingTop: '16px', fontSize: '9px', fontFamily: 'inherit' }} />
                           {/* One <Line> (a single SVG path) per angle instead of a
                               Scatter whose per-point shape emitted one <circle> DOM
                               node per data point — that made this chart alone render
@@ -6297,102 +6318,102 @@ export default function App() {
                     {/* 2×2 parameter grid */}
                     <div className="grid grid-cols-2 gap-4">
                       {/* a(θ) */}
-                      <div className="border border-[#E4E3E0]/10 p-3">
-                        <p className="text-[9px] font-mono opacity-40 mb-2">a(θ) — spontaneous moment term</p>
+                      <div className="border border-black/10 p-3">
+                        <p className="text-[11px] tabular-nums opacity-40 mb-2">a(θ) — spontaneous moment term</p>
                         <div className="h-[180px]">
                           <ResponsiveContainer width="100%" height="100%">
                             <ScatterChart margin={{ bottom: 16, left: 8 }}>
-                              <CartesianGrid strokeDasharray="3 3" stroke="#222" />
-                              <XAxis dataKey="blm" type="number" tick={{ fontSize: 8, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                                label={{ value: 'θ (°)', position: 'insideBottom', offset: 8, fill: '#E4E3E0', fontSize: 8 }} />
-                              <YAxis dataKey="a" type="number" tick={{ fontSize: 8, fontFamily: 'monospace', fill: '#E4E3E0' }}
+                              <CartesianGrid strokeDasharray="3 3" stroke="#e5e5ea" />
+                              <XAxis dataKey="blm" type="number" tick={{ fontSize: 8, fontFamily: 'inherit', fill: '#6e6e73' }}
+                                label={{ value: 'θ (°)', position: 'insideBottom', offset: 8, fill: '#6e6e73', fontSize: 8 }} />
+                              <YAxis dataKey="a" type="number" tick={{ fontSize: 8, fontFamily: 'inherit', fill: '#6e6e73' }}
                                 tickFormatter={(v: number) => v.toExponential(1)} width={55} />
-                              <Tooltip contentStyle={{ backgroundColor: '#141414', border: '1px solid #333', fontSize: '8px', color: '#E4E3E0' }} />
+                              <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '8px', color: '#1d1d1f' }} />
                               <Scatter data={fieldSweepByAngle.filter(e => e.lowFit).map(e => ({ blm: e.blm, a: e.lowFit!.a }))}
-                                fill="#F27D26" shape="circle" isAnimationActive={false} />
+                                fill="#0071e3" shape="circle" isAnimationActive={false} />
                             </ScatterChart>
                           </ResponsiveContainer>
                         </div>
                       </div>
                       {/* b(θ) */}
-                      <div className="border border-[#E4E3E0]/10 p-3">
-                        <p className="text-[9px] font-mono opacity-40 mb-2">b(θ) — susceptibility anisotropy</p>
+                      <div className="border border-black/10 p-3">
+                        <p className="text-[11px] tabular-nums opacity-40 mb-2">b(θ) — susceptibility anisotropy</p>
                         <div className="h-[180px]">
                           <ResponsiveContainer width="100%" height="100%">
                             <ScatterChart margin={{ bottom: 16, left: 8 }}>
-                              <CartesianGrid strokeDasharray="3 3" stroke="#222" />
-                              <XAxis dataKey="blm" type="number" tick={{ fontSize: 8, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                                label={{ value: 'θ (°)', position: 'insideBottom', offset: 8, fill: '#E4E3E0', fontSize: 8 }} />
-                              <YAxis dataKey="b" type="number" tick={{ fontSize: 8, fontFamily: 'monospace', fill: '#E4E3E0' }}
+                              <CartesianGrid strokeDasharray="3 3" stroke="#e5e5ea" />
+                              <XAxis dataKey="blm" type="number" tick={{ fontSize: 8, fontFamily: 'inherit', fill: '#6e6e73' }}
+                                label={{ value: 'θ (°)', position: 'insideBottom', offset: 8, fill: '#6e6e73', fontSize: 8 }} />
+                              <YAxis dataKey="b" type="number" tick={{ fontSize: 8, fontFamily: 'inherit', fill: '#6e6e73' }}
                                 tickFormatter={(v: number) => v.toExponential(1)} width={55} />
-                              <Tooltip contentStyle={{ backgroundColor: '#141414', border: '1px solid #333', fontSize: '8px', color: '#E4E3E0' }} />
+                              <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '8px', color: '#1d1d1f' }} />
                               <Scatter data={fieldSweepByAngle.filter(e => e.lowFit).map(e => ({ blm: e.blm, b: e.lowFit!.b }))}
-                                fill="#60A5FA" shape="circle" isAnimationActive={false} />
+                                fill="#ff9500" shape="circle" isAnimationActive={false} />
                             </ScatterChart>
                           </ResponsiveContainer>
                         </div>
                       </div>
                       {/* H_sf(θ) */}
-                      <div className="border border-[#E4E3E0]/10 p-3">
-                        <p className="text-[9px] font-mono opacity-40 mb-2">H_sf(θ) — spin-flop field</p>
+                      <div className="border border-black/10 p-3">
+                        <p className="text-[11px] tabular-nums opacity-40 mb-2">H_sf(θ) — spin-flop field</p>
                         <div className="h-[180px]">
                           <ResponsiveContainer width="100%" height="100%">
                             <ScatterChart margin={{ bottom: 16, left: 8 }}>
-                              <CartesianGrid strokeDasharray="3 3" stroke="#222" />
-                              <XAxis dataKey="blm" type="number" tick={{ fontSize: 8, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                                label={{ value: 'θ (°)', position: 'insideBottom', offset: 8, fill: '#E4E3E0', fontSize: 8 }} />
-                              <YAxis dataKey="hSf" type="number" tick={{ fontSize: 8, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                                label={{ value: 'H_sf (T)', angle: -90, position: 'insideLeft', fill: '#E4E3E0', fontSize: 8 }} width={45} />
-                              <Tooltip contentStyle={{ backgroundColor: '#141414', border: '1px solid #333', fontSize: '8px', color: '#E4E3E0' }} />
+                              <CartesianGrid strokeDasharray="3 3" stroke="#e5e5ea" />
+                              <XAxis dataKey="blm" type="number" tick={{ fontSize: 8, fontFamily: 'inherit', fill: '#6e6e73' }}
+                                label={{ value: 'θ (°)', position: 'insideBottom', offset: 8, fill: '#6e6e73', fontSize: 8 }} />
+                              <YAxis dataKey="hSf" type="number" tick={{ fontSize: 8, fontFamily: 'inherit', fill: '#6e6e73' }}
+                                label={{ value: 'H_sf (T)', angle: -90, position: 'insideLeft', fill: '#6e6e73', fontSize: 8 }} width={45} />
+                              <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '8px', color: '#1d1d1f' }} />
                               <Scatter data={fieldSweepByAngle.map(e => ({ blm: e.blm, hSf: e.hSf }))}
-                                fill="#4ADE80" shape="diamond" isAnimationActive={false} />
+                                fill="#28a745" shape="diamond" isAnimationActive={false} />
                             </ScatterChart>
                           </ResponsiveContainer>
                         </div>
                       </div>
                       {/* τ_sat(θ) */}
-                      <div className="border border-[#E4E3E0]/10 p-3">
-                        <p className="text-[9px] font-mono opacity-40 mb-2">τ_sat(θ) — high-field saturation</p>
+                      <div className="border border-black/10 p-3">
+                        <p className="text-[11px] tabular-nums opacity-40 mb-2">τ_sat(θ) — high-field saturation</p>
                         <div className="h-[180px]">
                           <ResponsiveContainer width="100%" height="100%">
                             <ScatterChart margin={{ bottom: 16, left: 8 }}>
-                              <CartesianGrid strokeDasharray="3 3" stroke="#222" />
-                              <XAxis dataKey="blm" type="number" tick={{ fontSize: 8, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                                label={{ value: 'θ (°)', position: 'insideBottom', offset: 8, fill: '#E4E3E0', fontSize: 8 }} />
-                              <YAxis dataKey="tauSat" type="number" tick={{ fontSize: 8, fontFamily: 'monospace', fill: '#E4E3E0' }}
+                              <CartesianGrid strokeDasharray="3 3" stroke="#e5e5ea" />
+                              <XAxis dataKey="blm" type="number" tick={{ fontSize: 8, fontFamily: 'inherit', fill: '#6e6e73' }}
+                                label={{ value: 'θ (°)', position: 'insideBottom', offset: 8, fill: '#6e6e73', fontSize: 8 }} />
+                              <YAxis dataKey="tauSat" type="number" tick={{ fontSize: 8, fontFamily: 'inherit', fill: '#6e6e73' }}
                                 tickFormatter={(v: number) => v.toExponential(1)} width={55} />
-                              <Tooltip contentStyle={{ backgroundColor: '#141414', border: '1px solid #333', fontSize: '8px', color: '#E4E3E0' }} />
+                              <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '8px', color: '#1d1d1f' }} />
                               <Scatter data={fieldSweepByAngle.filter(e => e.tauSat !== null).map(e => ({ blm: e.blm, tauSat: e.tauSat }))}
-                                fill="#F472B6" shape="circle" isAnimationActive={false} />
+                                fill="#e8457a" shape="circle" isAnimationActive={false} />
                             </ScatterChart>
                           </ResponsiveContainer>
                         </div>
                       </div>
                     </div>
                   </>) : (
-                    <div className="flex items-center justify-center h-32 text-[10px] font-mono opacity-30">Load data and select a column</div>
+                    <div className="flex items-center justify-center h-32 text-[12px] tabular-nums opacity-30">Load data and select a column</div>
                   )}
                 </div>
 
                 {/* ── 2. Angle-Sweep Fourier Decomposition ── */}
-                <div className="bg-[#141414] text-[#E4E3E0] p-6 border border-[#E4E3E0]/10">
+                <div className="bg-white text-[#1d1d1f] p-6 border border-black/10 rounded-2xl">
                   <div className="flex justify-between items-start mb-4">
                     <div>
-                      <h4 className="text-[11px] font-mono uppercase tracking-widest opacity-50">Angle-Sweep Fourier Decomposition</h4>
-                      <p className="text-[10px] font-mono mt-0.5 text-[#F27D26]">τ(α) = Σ Aₙ sin(nα + φₙ), n = 1..{tauFourierNMax}</p>
+                      <h4 className="text-[11px] tabular-nums opacity-50">Angle-Sweep Fourier Decomposition</h4>
+                      <p className="text-[12px] tabular-nums mt-0.5 text-[#0071e3]">τ(α) = Σ Aₙ sin(nα + φₙ), n = 1..{tauFourierNMax}</p>
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[8px] font-mono opacity-40">n_max</span>
+                        <span className="text-[12px] tabular-nums opacity-40">n_max</span>
                         <input type="number" step="1" min="1" max="12" value={tauFourierNMax}
                           onChange={e => setTauFourierNMax(Math.max(1, Math.min(12, parseInt(e.target.value) || 6)))}
-                          className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[9px] w-10 px-1.5 py-0.5 text-center focus:outline-none focus:border-[#F27D26]" />
+                          className="bg-white border border-black/15 text-[#1d1d1f] tabular-nums text-[11px] w-10 px-1.5 py-0.5 text-center focus:outline-none focus:border-[#0071e3]" />
                       </div>
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[8px] font-mono opacity-40">V (mm³)</span>
+                        <span className="text-[12px] tabular-nums opacity-40">V (mm³)</span>
                         <input type="number" step="0.1" value={tauSampleVol}
                           onChange={e => setTauSampleVol(parseFloat(e.target.value) || 1)}
-                          className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[9px] w-14 px-1.5 py-0.5 text-center focus:outline-none focus:border-[#F27D26]" />
+                          className="bg-white border border-black/15 text-[#1d1d1f] tabular-nums text-[11px] w-14 px-1.5 py-0.5 text-center focus:outline-none focus:border-[#0071e3]" />
                       </div>
                     </div>
                   </div>
@@ -6416,20 +6437,20 @@ export default function App() {
                       <div className="space-y-4">
                         {/* Amplitude chart */}
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                          <div className="border border-[#E4E3E0]/10 p-3">
-                            <p className="text-[9px] font-mono opacity-40 mb-2">Amplitude Aₙ vs H</p>
+                          <div className="border border-black/10 p-3">
+                            <p className="text-[11px] tabular-nums opacity-40 mb-2">Amplitude Aₙ vs H</p>
                             <div className="h-[240px]">
                               <ResponsiveContainer width="100%" height="100%">
                                 <ComposedChart margin={{ bottom: 16, left: 8 }}>
-                                  <CartesianGrid strokeDasharray="3 3" stroke="#222" />
-                                  <XAxis dataKey="h" type="number" tick={{ fontSize: 8, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                                    label={{ value: 'H (T)', position: 'insideBottom', offset: 8, fill: '#E4E3E0', fontSize: 8 }} />
-                                  <YAxis dataKey="A" type="number" tick={{ fontSize: 8, fontFamily: 'monospace', fill: '#E4E3E0' }}
+                                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e5ea" />
+                                  <XAxis dataKey="h" type="number" tick={{ fontSize: 8, fontFamily: 'inherit', fill: '#6e6e73' }}
+                                    label={{ value: 'H (T)', position: 'insideBottom', offset: 8, fill: '#6e6e73', fontSize: 8 }} />
+                                  <YAxis dataKey="A" type="number" tick={{ fontSize: 8, fontFamily: 'inherit', fill: '#6e6e73' }}
                                     tickFormatter={(v: number) => v.toExponential(1)} width={55} />
-                                  <Tooltip contentStyle={{ backgroundColor: '#141414', border: '1px solid #333', fontSize: '8px', color: '#E4E3E0' }} />
-                                  <Legend wrapperStyle={{ fontSize: '8px', fontFamily: 'monospace' }} />
+                                  <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '8px', color: '#1d1d1f' }} />
+                                  <Legend wrapperStyle={{ fontSize: '8px', fontFamily: 'inherit' }} />
                                   {([2,4,6] as const).map((n, ni) => {
-                                    const color = ['#60A5FA','#FBBF24','#4ADE80'][ni];
+                                    const color = ['#ff9500','#c27c0e','#28a745'][ni];
                                     return (
                                       <Line key={n} name={`A${n}`}
                                         data={fourierScanData.map(d => ({ h: d.h, A: d.coeffs.find(c => c.n === n)?.A ?? 0 }))}
@@ -6442,20 +6463,20 @@ export default function App() {
                           </div>
 
                           {/* Phase chart */}
-                          <div className="border border-[#E4E3E0]/10 p-3">
-                            <p className="text-[9px] font-mono opacity-40 mb-2">Phase φₙ (°) vs H</p>
+                          <div className="border border-black/10 p-3">
+                            <p className="text-[11px] tabular-nums opacity-40 mb-2">Phase φₙ (°) vs H</p>
                             <div className="h-[240px]">
                               <ResponsiveContainer width="100%" height="100%">
                                 <ComposedChart margin={{ bottom: 16, left: 8 }}>
-                                  <CartesianGrid strokeDasharray="3 3" stroke="#222" />
-                                  <XAxis dataKey="h" type="number" tick={{ fontSize: 8, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                                    label={{ value: 'H (T)', position: 'insideBottom', offset: 8, fill: '#E4E3E0', fontSize: 8 }} />
-                                  <YAxis dataKey="phi" type="number" tick={{ fontSize: 8, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                                    label={{ value: 'φ (°)', angle: -90, position: 'insideLeft', fill: '#E4E3E0', fontSize: 8 }} width={40} />
-                                  <Tooltip contentStyle={{ backgroundColor: '#141414', border: '1px solid #333', fontSize: '8px', color: '#E4E3E0' }} />
-                                  <Legend wrapperStyle={{ fontSize: '8px', fontFamily: 'monospace' }} />
+                                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e5ea" />
+                                  <XAxis dataKey="h" type="number" tick={{ fontSize: 8, fontFamily: 'inherit', fill: '#6e6e73' }}
+                                    label={{ value: 'H (T)', position: 'insideBottom', offset: 8, fill: '#6e6e73', fontSize: 8 }} />
+                                  <YAxis dataKey="phi" type="number" tick={{ fontSize: 8, fontFamily: 'inherit', fill: '#6e6e73' }}
+                                    label={{ value: 'φ (°)', angle: -90, position: 'insideLeft', fill: '#6e6e73', fontSize: 8 }} width={40} />
+                                  <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '8px', color: '#1d1d1f' }} />
+                                  <Legend wrapperStyle={{ fontSize: '8px', fontFamily: 'inherit' }} />
                                   {([2,4,6] as const).map((n, ni) => {
-                                    const color = ['#60A5FA','#FBBF24','#4ADE80'][ni];
+                                    const color = ['#ff9500','#c27c0e','#28a745'][ni];
                                     return (
                                       <Line key={n} name={`φ${n}`}
                                         data={fourierScanData.map(d => ({ h: d.h, phi: d.coeffs.find(c => c.n === n)?.phiDeg ?? 0 }))}
@@ -6468,28 +6489,28 @@ export default function App() {
                           </div>
 
                           {/* A₂/A₆ ratio + K₆ */}
-                          <div className="border border-[#E4E3E0]/10 p-3">
+                          <div className="border border-black/10 p-3">
                             <div className="flex justify-between items-start mb-2">
-                              <p className="text-[9px] font-mono opacity-40">A₂/A₆ ratio vs H</p>
+                              <p className="text-[11px] tabular-nums opacity-40">A₂/A₆ ratio vs H</p>
                               {k6Est !== null && (
                                 <div className="text-right">
-                                  <span className="text-[8px] font-mono opacity-40 block">K₆ ≈</span>
-                                  <span className="text-[10px] font-mono text-[#4ADE80]">{k6Est.toExponential(3)}</span>
-                                  <span className="text-[7px] font-mono opacity-30 ml-1">τ·mm⁻³</span>
+                                  <span className="text-[12px] tabular-nums opacity-40 block">K₆ ≈</span>
+                                  <span className="text-[12px] tabular-nums text-[#28a745]">{k6Est.toExponential(3)}</span>
+                                  <span className="text-[7px] tabular-nums opacity-30 ml-1">τ·mm⁻³</span>
                                 </div>
                               )}
                             </div>
                             <div className="h-[240px]">
                               <ResponsiveContainer width="100%" height="100%">
                                 <ComposedChart margin={{ bottom: 16, left: 8 }}>
-                                  <CartesianGrid strokeDasharray="3 3" stroke="#222" />
-                                  <XAxis dataKey="h" type="number" tick={{ fontSize: 8, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                                    label={{ value: 'H (T)', position: 'insideBottom', offset: 8, fill: '#E4E3E0', fontSize: 8 }} />
-                                  <YAxis dataKey="ratio" type="number" tick={{ fontSize: 8, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                                    label={{ value: 'A₂/A₆', angle: -90, position: 'insideLeft', fill: '#E4E3E0', fontSize: 8 }} width={40} />
-                                  <Tooltip contentStyle={{ backgroundColor: '#141414', border: '1px solid #333', fontSize: '8px', color: '#E4E3E0' }} />
+                                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e5ea" />
+                                  <XAxis dataKey="h" type="number" tick={{ fontSize: 8, fontFamily: 'inherit', fill: '#6e6e73' }}
+                                    label={{ value: 'H (T)', position: 'insideBottom', offset: 8, fill: '#6e6e73', fontSize: 8 }} />
+                                  <YAxis dataKey="ratio" type="number" tick={{ fontSize: 8, fontFamily: 'inherit', fill: '#6e6e73' }}
+                                    label={{ value: 'A₂/A₆', angle: -90, position: 'insideLeft', fill: '#6e6e73', fontSize: 8 }} width={40} />
+                                  <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '8px', color: '#1d1d1f' }} />
                                   <Line name="A₂/A₆" data={a2OverA6} dataKey="ratio"
-                                    stroke="#C084FC" strokeWidth={1.5} dot={false} isAnimationActive={false} />
+                                    stroke="#af52de" strokeWidth={1.5} dot={false} isAnimationActive={false} />
                                 </ComposedChart>
                               </ResponsiveContainer>
                             </div>
@@ -6498,41 +6519,41 @@ export default function App() {
                       </div>
                     );
                   })() : (
-                    <div className="flex items-center justify-center h-32 text-[10px] font-mono opacity-30">Load data with ≥{2*tauFourierNMax} BLM angles</div>
+                    <div className="flex items-center justify-center h-32 text-[12px] tabular-nums opacity-30">Load data with ≥{2*tauFourierNMax} BLM angles</div>
                   )}
                 </div>
 
                 {/* ── 3. Scaling Verification ── */}
-                <div className="bg-[#141414] text-[#E4E3E0] p-6 border border-[#E4E3E0]/10">
+                <div className="bg-white text-[#1d1d1f] p-6 border border-black/10 rounded-2xl">
                   <div className="flex justify-between items-start mb-4">
                     <div>
-                      <h4 className="text-[11px] font-mono uppercase tracking-widest opacity-50">Scaling Verification</h4>
-                      <p className="text-[10px] font-mono mt-0.5 text-[#F27D26]">τ/H² vs α (collapse test) and τ vs α</p>
+                      <h4 className="text-[11px] tabular-nums opacity-50">Scaling Verification</h4>
+                      <p className="text-[12px] tabular-nums mt-0.5 text-[#0071e3]">τ/H² vs α (collapse test) and τ vs α</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-[8px] font-mono opacity-40">H values (T)</span>
+                      <span className="text-[12px] tabular-nums opacity-40">H values (T)</span>
                       <input value={tauScaleFieldsStr}
                         onChange={e => setTauScaleFieldsStr(e.target.value)}
                         placeholder="2,5,10,15,20"
-                        className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[9px] w-36 px-2 py-0.5 focus:outline-none focus:border-[#F27D26]" />
+                        className="bg-white border border-black/15 text-[#1d1d1f] tabular-nums text-[11px] w-36 px-2 py-0.5 focus:outline-none focus:border-[#0071e3]" />
                     </div>
                   </div>
 
                   {scalingVerifData.length > 0 ? (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       {/* τ/H² vs α */}
-                      <div className="border border-[#E4E3E0]/10 p-3">
-                        <p className="text-[9px] font-mono opacity-40 mb-2">τ/H² vs α — collapses at low field if τ ∝ H²</p>
+                      <div className="border border-black/10 p-3">
+                        <p className="text-[11px] tabular-nums opacity-40 mb-2">τ/H² vs α — collapses at low field if τ ∝ H²</p>
                         <div className="h-[300px]">
                           <ResponsiveContainer width="100%" height="100%">
                             <ComposedChart margin={{ bottom: 20, left: 10 }}>
-                              <CartesianGrid strokeDasharray="3 3" stroke="#222" />
-                              <XAxis dataKey="alpha" type="number" tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                                label={{ value: 'α (°)', position: 'insideBottom', offset: 10, fill: '#E4E3E0', fontSize: 9 }} />
-                              <YAxis dataKey="tauOverH2" type="number" tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }}
+                              <CartesianGrid strokeDasharray="3 3" stroke="#e5e5ea" />
+                              <XAxis dataKey="alpha" type="number" tick={{ fontSize: 9, fontFamily: 'inherit', fill: '#6e6e73' }}
+                                label={{ value: 'α (°)', position: 'insideBottom', offset: 10, fill: '#6e6e73', fontSize: 9 }} />
+                              <YAxis dataKey="tauOverH2" type="number" tick={{ fontSize: 9, fontFamily: 'inherit', fill: '#6e6e73' }}
                                 tickFormatter={(v: number) => v.toExponential(1)} width={60} />
-                              <Tooltip contentStyle={{ backgroundColor: '#141414', border: '1px solid #333', fontSize: '9px', color: '#E4E3E0' }} />
-                              <Legend wrapperStyle={{ paddingTop: '12px', fontSize: '9px', fontFamily: 'monospace' }} />
+                              <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '9px', color: '#1d1d1f' }} />
+                              <Legend wrapperStyle={{ paddingTop: '12px', fontSize: '9px', fontFamily: 'inherit' }} />
                               {scalingVerifData.map(({ h, pts }, i) => {
                                 const color = `hsl(${(i * 55) % 360}, 65%, 58%)`;
                                 return (
@@ -6547,18 +6568,18 @@ export default function App() {
                         </div>
                       </div>
                       {/* τ vs α */}
-                      <div className="border border-[#E4E3E0]/10 p-3">
-                        <p className="text-[9px] font-mono opacity-40 mb-2">τ vs α (unnormalized)</p>
+                      <div className="border border-black/10 p-3">
+                        <p className="text-[11px] tabular-nums opacity-40 mb-2">τ vs α (unnormalized)</p>
                         <div className="h-[300px]">
                           <ResponsiveContainer width="100%" height="100%">
                             <ComposedChart margin={{ bottom: 20, left: 10 }}>
-                              <CartesianGrid strokeDasharray="3 3" stroke="#222" />
-                              <XAxis dataKey="alpha" type="number" tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                                label={{ value: 'α (°)', position: 'insideBottom', offset: 10, fill: '#E4E3E0', fontSize: 9 }} />
-                              <YAxis dataKey="tau" type="number" tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }}
+                              <CartesianGrid strokeDasharray="3 3" stroke="#e5e5ea" />
+                              <XAxis dataKey="alpha" type="number" tick={{ fontSize: 9, fontFamily: 'inherit', fill: '#6e6e73' }}
+                                label={{ value: 'α (°)', position: 'insideBottom', offset: 10, fill: '#6e6e73', fontSize: 9 }} />
+                              <YAxis dataKey="tau" type="number" tick={{ fontSize: 9, fontFamily: 'inherit', fill: '#6e6e73' }}
                                 tickFormatter={(v: number) => v.toExponential(1)} width={60} />
-                              <Tooltip contentStyle={{ backgroundColor: '#141414', border: '1px solid #333', fontSize: '9px', color: '#E4E3E0' }} />
-                              <Legend wrapperStyle={{ paddingTop: '12px', fontSize: '9px', fontFamily: 'monospace' }} />
+                              <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '9px', color: '#1d1d1f' }} />
+                              <Legend wrapperStyle={{ paddingTop: '12px', fontSize: '9px', fontFamily: 'inherit' }} />
                               {scalingVerifData.map(({ h, pts }, i) => {
                                 const color = `hsl(${(i * 55) % 360}, 65%, 58%)`;
                                 return (
@@ -6574,7 +6595,7 @@ export default function App() {
                       </div>
                     </div>
                   ) : (
-                    <div className="flex items-center justify-center h-32 text-[10px] font-mono opacity-30">Load data and enter H values above</div>
+                    <div className="flex items-center justify-center h-32 text-[12px] tabular-nums opacity-30">Load data and enter H values above</div>
                   )}
                 </div>
 
@@ -6584,22 +6605,22 @@ export default function App() {
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
               {/* ── Control Panel ── */}
-              <div className="bg-[#141414] text-[#E4E3E0] border border-[#E4E3E0]/10">
-                <div className="flex items-center justify-between px-6 py-4 border-b border-[#E4E3E0]/10">
+              <div className="bg-white text-[#1d1d1f] border border-black/10">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-black/10">
                   <div className="flex items-center gap-3">
-                    <GitBranch size={18} className="text-[#F27D26]" />
-                    <h3 className="text-lg font-serif italic font-bold">Landau Fan &amp; Berry Phase</h3>
-                    <span className="text-[9px] font-mono opacity-30 ml-2">n = F/B − ½ + β + δ</span>
+                    <GitBranch size={18} className="text-[#0071e3]" />
+                    <h3 className="text-lg font-semibold">Landau Fan &amp; Berry Phase</h3>
+                    <span className="text-[11px] tabular-nums opacity-30 ml-2">n = F/B − ½ + β + δ</span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-[9px] font-mono uppercase opacity-40">Series</span>
+                    <span className="text-[11px] tabular-nums opacity-40">Series</span>
                     <select
                       value={landauSelected?.key ?? ''}
                       onChange={(e) => setLandauResultKey(e.target.value)}
-                      className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[10px] px-3 py-1.5 focus:outline-none focus:border-[#F27D26] cursor-pointer max-w-[280px]"
+                      className="bg-white border border-black/15 text-[#1d1d1f] tabular-nums text-[12px] px-3 py-1.5 focus:outline-none focus:border-[#0071e3] cursor-pointer max-w-[280px]"
                     >
                       {landauSeriesList.map(s => (
-                        <option key={s.key} value={s.key} className="bg-[#141414]">{s.blm}° · {s.col}</option>
+                        <option key={s.key} value={s.key} className="bg-white">{s.blm}° · {s.col}</option>
                       ))}
                     </select>
                   </div>
@@ -6607,39 +6628,39 @@ export default function App() {
                 {/* Controls */}
                 <div className="flex items-center gap-4 px-6 py-3 flex-wrap">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[8px] font-mono uppercase opacity-40">Integer n at</span>
+                    <span className="text-[12px] tabular-nums opacity-40">Integer n at</span>
                     {(['max', 'min'] as const).map(t => (
                       <button key={t} onClick={() => setLandauIntegerAt(t)}
-                        className={`px-1.5 py-0.5 font-mono text-[8px] uppercase border transition-all ${landauIntegerAt === t ? 'border-[#F27D26] text-[#F27D26] bg-[#F27D26]/10' : 'border-[#E4E3E0]/15 opacity-40 hover:opacity-70'}`}
+                        className={`px-1.5 py-0.5 tabular-nums text-[12px] border transition-all ${landauIntegerAt === t ? 'border-[#0071e3] text-[#0071e3] bg-[#0071e3]/10' : 'border-black/15 opacity-40 hover:opacity-70'}`}
                       >{t === 'max' ? 'ΔR max' : 'ΔR min'}</button>
                     ))}
                   </div>
                   <button onClick={() => setLandauUseBoth(v => !v)}
-                    className={`px-2 py-0.5 font-mono text-[8px] uppercase border transition-all ${landauUseBoth ? 'border-[#4ADE80]/60 text-[#4ADE80] bg-[#4ADE80]/10' : 'border-[#E4E3E0]/15 opacity-40 hover:opacity-70'}`}
+                    className={`px-2 py-0.5 tabular-nums text-[12px] border transition-all ${landauUseBoth ? 'border-[#28a745]/60 text-[#28a745] bg-[#28a745]/10' : 'border-black/15 opacity-40 hover:opacity-70'}`}
                     title="Use both maxima and minima (half-integer indices between integers)"
                   >max+min</button>
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[8px] font-mono uppercase opacity-40">n₀</span>
+                    <span className="text-[12px] tabular-nums opacity-40">n₀</span>
                     <input type="number" step="1" value={landauN0}
                       onChange={e => setLandauN0(parseInt(e.target.value) || 0)}
-                      className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[9px] w-12 px-1.5 py-0.5 text-center focus:outline-none focus:border-[#F27D26]" />
+                      className="bg-white border border-black/15 text-[#1d1d1f] tabular-nums text-[11px] w-12 px-1.5 py-0.5 text-center focus:outline-none focus:border-[#0071e3]" />
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[8px] font-mono uppercase opacity-40">Smooth</span>
+                    <span className="text-[12px] tabular-nums opacity-40">Smooth</span>
                     <input type="number" step="2" min="1" value={landauSmoothWin}
                       onChange={e => setLandauSmoothWin(Math.max(1, parseInt(e.target.value) || 1))}
-                      className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[9px] w-12 px-1.5 py-0.5 text-center focus:outline-none focus:border-[#F27D26]" />
+                      className="bg-white border border-black/15 text-[#1d1d1f] tabular-nums text-[11px] w-12 px-1.5 py-0.5 text-center focus:outline-none focus:border-[#0071e3]" />
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[8px] font-mono uppercase opacity-40">Prominence</span>
+                    <span className="text-[12px] tabular-nums opacity-40">Prominence</span>
                     <input type="number" step="0.01" min="0" value={landauProm}
                       onChange={e => setLandauProm(Math.max(0, parseFloat(e.target.value) || 0))}
-                      className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[9px] w-14 px-1.5 py-0.5 text-center focus:outline-none focus:border-[#F27D26]" />
+                      className="bg-white border border-black/15 text-[#1d1d1f] tabular-nums text-[11px] w-14 px-1.5 py-0.5 text-center focus:outline-none focus:border-[#0071e3]" />
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[8px] font-mono uppercase opacity-40">δ</span>
+                    <span className="text-[12px] tabular-nums opacity-40">δ</span>
                     <select value={landauDelta} onChange={e => setLandauDelta(parseFloat(e.target.value))}
-                      className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[9px] px-1.5 py-0.5 focus:outline-none focus:border-[#F27D26] cursor-pointer">
+                      className="bg-white border border-black/15 text-[#1d1d1f] tabular-nums text-[11px] px-1.5 py-0.5 focus:outline-none focus:border-[#0071e3] cursor-pointer">
                       <option value={0}>0 (2D)</option>
                       <option value={0.125}>+1/8 (3D)</option>
                       <option value={-0.125}>−1/8 (3D)</option>
@@ -6647,36 +6668,36 @@ export default function App() {
                   </div>
                 </div>
                 {/* Band-pass row: FFT → keep one peak → IFFT → index */}
-                <div className="flex items-center gap-4 px-6 py-3 border-t border-[#E4E3E0]/10 flex-wrap">
+                <div className="flex items-center gap-4 px-6 py-3 border-t border-black/10 flex-wrap">
                   <button onClick={() => setLandauBandpass(v => !v)}
-                    className={`px-2 py-0.5 font-mono text-[8px] uppercase border transition-all ${landauBandpass ? 'border-[#4ADE80]/60 text-[#4ADE80] bg-[#4ADE80]/10' : 'border-[#E4E3E0]/15 opacity-40 hover:opacity-70'}`}
+                    className={`px-2 py-0.5 tabular-nums text-[12px] border transition-all ${landauBandpass ? 'border-[#28a745]/60 text-[#28a745] bg-[#28a745]/10' : 'border-black/15 opacity-40 hover:opacity-70'}`}
                     title="FFT the oscillation, keep only the selected frequency band, inverse-FFT, then index the single component"
                   >band-pass (FFT→IFFT)</button>
                   <div className={`flex items-center gap-1.5 ${landauBandpass ? '' : 'opacity-30 pointer-events-none'}`}>
-                    <span className="text-[8px] font-mono uppercase opacity-40">Band</span>
+                    <span className="text-[12px] tabular-nums opacity-40">Band</span>
                     <input type="number" step="10" value={landauBandLo || ''} placeholder="lo"
                       onChange={e => setLandauBandLo(parseFloat(e.target.value) || 0)}
-                      className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[9px] w-16 px-1.5 py-0.5 text-center focus:outline-none focus:border-[#F27D26]" />
-                    <span className="text-[8px] font-mono opacity-30">–</span>
+                      className="bg-white border border-black/15 text-[#1d1d1f] tabular-nums text-[11px] w-16 px-1.5 py-0.5 text-center focus:outline-none focus:border-[#0071e3]" />
+                    <span className="text-[12px] tabular-nums opacity-30">–</span>
                     <input type="number" step="10" value={landauBandHi || ''} placeholder="hi"
                       onChange={e => setLandauBandHi(parseFloat(e.target.value) || 0)}
-                      className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[9px] w-16 px-1.5 py-0.5 text-center focus:outline-none focus:border-[#F27D26]" />
-                    <span className="text-[8px] font-mono opacity-30">T</span>
+                      className="bg-white border border-black/15 text-[#1d1d1f] tabular-nums text-[11px] w-16 px-1.5 py-0.5 text-center focus:outline-none focus:border-[#0071e3]" />
+                    <span className="text-[12px] tabular-nums opacity-30">T</span>
                     <button onClick={() => { setLandauBandLo(0); setLandauBandHi(0); }}
-                      className={`px-1.5 py-0.5 font-mono text-[8px] uppercase border transition-all ${landauBand === null ? 'border-[#F27D26] text-[#F27D26] bg-[#F27D26]/10' : 'border-[#E4E3E0]/15 opacity-40 hover:opacity-70'}`}
+                      className={`px-1.5 py-0.5 tabular-nums text-[12px] border transition-all ${landauBand === null ? 'border-[#0071e3] text-[#0071e3] bg-[#0071e3]/10' : 'border-black/15 opacity-40 hover:opacity-70'}`}
                       title="Auto: center the band on the dominant peak">Auto</button>
                   </div>
                   <div className={`flex items-center gap-1.5 ${landauBandpass ? '' : 'opacity-30 pointer-events-none'}`}>
-                    <span className="text-[8px] font-mono uppercase opacity-40">Edge</span>
+                    <span className="text-[12px] tabular-nums opacity-40">Edge</span>
                     <input type="number" step="0.05" min="0" max="1" value={landauEdge}
                       onChange={e => setLandauEdge(Math.max(0, Math.min(1, parseFloat(e.target.value) || 0)))}
-                      className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[9px] w-14 px-1.5 py-0.5 text-center focus:outline-none focus:border-[#F27D26]" />
+                      className="bg-white border border-black/15 text-[#1d1d1f] tabular-nums text-[11px] w-14 px-1.5 py-0.5 text-center focus:outline-none focus:border-[#0071e3]" />
                   </div>
                 </div>
               </div>
 
               {landauSeriesList.length === 0 ? (
-                <div className="bg-[#141414] text-[#E4E3E0] border border-[#E4E3E0]/10 flex items-center justify-center h-40 text-[11px] font-mono opacity-50 text-center px-8">
+                <div className="bg-white text-[#1d1d1f] border border-black/10 flex items-center justify-center h-40 text-[11px] tabular-nums opacity-50 text-center px-8">
                   No processed ΔR(1/B) yet. Go to the Dashboard, pick a column prefix, and click “Process All” — the Landau fan reads the background-subtracted oscillations from there.
                 </div>
               ) : (() => {
@@ -6697,28 +6718,28 @@ export default function App() {
                   <>
                     {/* Chart 0: FFT spectrum + band picker */}
                     {landauBandpass && specView.length > 0 && (
-                      <div className="bg-[#141414] text-[#E4E3E0] p-6 border border-[#E4E3E0]/10">
+                      <div className="bg-white text-[#1d1d1f] p-6 border border-black/10 rounded-2xl">
                         <div className="flex justify-between items-start mb-3">
                           <div>
-                            <h4 className="text-[11px] font-mono uppercase tracking-widest opacity-50">FFT Spectrum — keep one peak</h4>
-                            <p className="text-[10px] font-mono mt-0.5 text-[#F27D26]">dominant F ≈ {landauFiltered!.peakF.toFixed(1)} T <span className="opacity-40 text-[#E4E3E0]">· band {band!.lo.toFixed(0)}–{band!.hi.toFixed(0)} T {landauBand === null ? '(auto)' : '(manual)'}</span></p>
+                            <h4 className="text-[11px] tabular-nums opacity-50">FFT Spectrum — keep one peak</h4>
+                            <p className="text-[12px] tabular-nums mt-0.5 text-[#0071e3]">dominant F ≈ {landauFiltered!.peakF.toFixed(1)} T <span className="opacity-40 text-[#1d1d1f]">· band {band!.lo.toFixed(0)}–{band!.hi.toFixed(0)} T {landauBand === null ? '(auto)' : '(manual)'}</span></p>
                           </div>
                         </div>
                         <div className="h-[200px] w-full">
                           <ResponsiveContainer width="100%" height="100%">
                             <ComposedChart data={specView} margin={{ bottom: 16, left: 10, right: 10 }}>
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#222" />
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5ea" />
                               <XAxis dataKey="frequency" type="number" domain={[0, specMax]}
-                                tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }}
+                                tick={{ fontSize: 9, fontFamily: 'inherit', fill: '#6e6e73' }}
                                 tickFormatter={(v: number) => v.toFixed(0)}
-                                label={{ value: 'F (T)', position: 'insideBottom', offset: 8, fill: '#E4E3E0', fontSize: 9 }} />
-                              <YAxis tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }}
+                                label={{ value: 'F (T)', position: 'insideBottom', offset: 8, fill: '#6e6e73', fontSize: 9 }} />
+                              <YAxis tick={{ fontSize: 9, fontFamily: 'inherit', fill: '#6e6e73' }}
                                 tickFormatter={(v: number) => v.toExponential(0)} width={50} />
-                              <Tooltip contentStyle={{ backgroundColor: '#141414', border: '1px solid #333', fontSize: '9px', color: '#E4E3E0' }}
+                              <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '9px', color: '#1d1d1f' }}
                                 formatter={(v: any) => [typeof v === 'number' ? v.toExponential(3) : v, 'Amp']}
                                 labelFormatter={(v: number) => `F = ${Number(v).toFixed(1)} T`} />
-                              {band && band.hi > band.lo && <ReferenceArea x1={band.lo} x2={band.hi} fill="#F27D26" fillOpacity={0.15} stroke="#F27D26" strokeOpacity={0.4} />}
-                              <Area type="linear" dataKey="amplitude" stroke="#4ADE80" fill="#4ADE80" fillOpacity={0.15} strokeWidth={1} dot={false} isAnimationActive={false} />
+                              {band && band.hi > band.lo && <ReferenceArea x1={band.lo} x2={band.hi} fill="#0071e3" fillOpacity={0.15} stroke="#0071e3" strokeOpacity={0.4} />}
+                              <Area type="linear" dataKey="amplitude" stroke="#28a745" fill="#28a745" fillOpacity={0.15} strokeWidth={1} dot={false} isAnimationActive={false} />
                             </ComposedChart>
                           </ResponsiveContainer>
                         </div>
@@ -6726,36 +6747,36 @@ export default function App() {
                     )}
 
                     {/* Chart 1: Landau level picking */}
-                    <div className="bg-[#141414] text-[#E4E3E0] p-6 border border-[#E4E3E0]/10">
+                    <div className="bg-white text-[#1d1d1f] p-6 border border-black/10 rounded-2xl">
                       <div className="flex justify-between items-start mb-3">
                         <div>
-                          <h4 className="text-[11px] font-mono uppercase tracking-widest opacity-50">Landau Levels — {landauFiltered?.filtered ? 'band-passed ΔR' : 'ΔR'} vs 1/B</h4>
-                          <p className="text-[10px] font-mono mt-0.5 text-[#F27D26]">{landauSelected?.blm}° · {landauSelected?.col} <span className="opacity-40 text-[#E4E3E0]">· {fan?.points.length ?? 0} levels tagged{landauFiltered?.filtered ? ` · single component ${band!.lo.toFixed(0)}–${band!.hi.toFixed(0)} T` : ''}</span></p>
+                          <h4 className="text-[11px] tabular-nums opacity-50">Landau Levels — {landauFiltered?.filtered ? 'band-passed ΔR' : 'ΔR'} vs 1/B</h4>
+                          <p className="text-[12px] tabular-nums mt-0.5 text-[#0071e3]">{landauSelected?.blm}° · {landauSelected?.col} <span className="opacity-40 text-[#1d1d1f]">· {fan?.points.length ?? 0} levels tagged{landauFiltered?.filtered ? ` · single component ${band!.lo.toFixed(0)}–${band!.hi.toFixed(0)} T` : ''}</span></p>
                         </div>
-                        <div className="flex items-center gap-3 text-[9px] font-mono">
-                          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#F27D26]" />integer n</span>
-                          {landauUseBoth && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#60A5FA]" />half-integer</span>}
+                        <div className="flex items-center gap-3 text-[11px] tabular-nums">
+                          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#0071e3]" />integer n</span>
+                          {landauUseBoth && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#ff9500]" />half-integer</span>}
                         </div>
                       </div>
                       <div className="h-[300px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
                           <ComposedChart margin={{ bottom: 20, left: 10, right: 10 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#222" />
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5ea" />
                             <XAxis dataKey="invB" type="number" domain={['dataMin', 'dataMax']}
-                              tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }}
+                              tick={{ fontSize: 9, fontFamily: 'inherit', fill: '#6e6e73' }}
                               tickFormatter={(v: number) => v.toFixed(3)}
-                              label={{ value: '1/B (T⁻¹)', position: 'insideBottom', offset: 10, fill: '#E4E3E0', fontSize: 9 }} />
-                            <YAxis dataKey="val" type="number" tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }}
+                              label={{ value: '1/B (T⁻¹)', position: 'insideBottom', offset: 10, fill: '#6e6e73', fontSize: 9 }} />
+                            <YAxis dataKey="val" type="number" tick={{ fontSize: 9, fontFamily: 'inherit', fill: '#6e6e73' }}
                               tickFormatter={(v: number) => v.toExponential(1)} width={60}
-                              label={{ value: 'ΔR', angle: -90, position: 'insideLeft', fill: '#E4E3E0', fontSize: 9 }} />
-                            <Tooltip contentStyle={{ backgroundColor: '#141414', border: '1px solid #333', fontSize: '9px', color: '#E4E3E0' }}
+                              label={{ value: 'ΔR', angle: -90, position: 'insideLeft', fill: '#6e6e73', fontSize: 9 }} />
+                            <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '9px', color: '#1d1d1f' }}
                               formatter={(v: any) => [typeof v === 'number' ? v.toExponential(4) : v]}
                               labelFormatter={(v: number) => `1/B = ${v.toFixed(4)} (B = ${(1 / v).toFixed(2)} T)`} />
-                            <Line data={landauLine} dataKey="val" stroke="#E4E3E0" strokeOpacity={0.5} strokeWidth={1} dot={false} isAnimationActive={false} />
-                            <Scatter data={intPts} dataKey="val" fill="#F27D26" isAnimationActive={false}
-                              shape={(p: any) => <circle cx={p.cx} cy={p.cy} r={4} fill="#F27D26" />} />
-                            {landauUseBoth && <Scatter data={halfPts} dataKey="val" fill="#60A5FA" isAnimationActive={false}
-                              shape={(p: any) => <circle cx={p.cx} cy={p.cy} r={3} fill="#60A5FA" />} />}
+                            <Line data={landauLine} dataKey="val" stroke="#1d1d1f" strokeOpacity={0.5} strokeWidth={1} dot={false} isAnimationActive={false} />
+                            <Scatter data={intPts} dataKey="val" fill="#0071e3" isAnimationActive={false}
+                              shape={(p: any) => <circle cx={p.cx} cy={p.cy} r={4} fill="#0071e3" />} />
+                            {landauUseBoth && <Scatter data={halfPts} dataKey="val" fill="#ff9500" isAnimationActive={false}
+                              shape={(p: any) => <circle cx={p.cx} cy={p.cy} r={3} fill="#ff9500" />} />}
                           </ComposedChart>
                         </ResponsiveContainer>
                       </div>
@@ -6763,66 +6784,66 @@ export default function App() {
 
                     {/* Chart 2: fan + results */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                      <div className="lg:col-span-2 bg-[#141414] text-[#E4E3E0] p-6 border border-[#E4E3E0]/10">
+                      <div className="lg:col-span-2 bg-white text-[#1d1d1f] p-6 border border-black/10 rounded-2xl">
                         <div className="flex justify-between items-start mb-3">
-                          <h4 className="text-[11px] font-mono uppercase tracking-widest opacity-50">Landau Fan — n vs 1/B</h4>
+                          <h4 className="text-[11px] tabular-nums opacity-50">Landau Fan — n vs 1/B</h4>
                           <button
                             onClick={() => { if (!fan || fan.points.length === 0) return; downloadCSV('n,1/B(1/T),B(T),type,DeltaR\n' + fan.points.map(p => `${p.n},${p.invB},${p.b},${p.type},${p.val}`).join('\n'), `landau_fan_${landauSelected?.blm}deg_${landauSelected?.col}.csv`); }}
-                            className="px-2 py-1 font-mono text-[9px] uppercase border border-[#E4E3E0]/15 hover:bg-white/5 flex items-center gap-1"><Download size={9} />CSV</button>
+                            className="px-2 py-1 tabular-nums text-[11px] border border-black/15 hover:bg-black/5 flex items-center gap-1"><Download size={9} />CSV</button>
                         </div>
                         <div className="h-[320px] w-full">
                           <ResponsiveContainer width="100%" height="100%">
                             <ComposedChart margin={{ bottom: 20, left: 10, right: 10 }}>
-                              <CartesianGrid strokeDasharray="3 3" stroke="#222" />
+                              <CartesianGrid strokeDasharray="3 3" stroke="#e5e5ea" />
                               <XAxis dataKey="invB" type="number" domain={[0, 'dataMax']}
-                                tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }}
+                                tick={{ fontSize: 9, fontFamily: 'inherit', fill: '#6e6e73' }}
                                 tickFormatter={(v: number) => v.toFixed(3)}
-                                label={{ value: '1/B (T⁻¹)', position: 'insideBottom', offset: 10, fill: '#E4E3E0', fontSize: 9 }} />
-                              <YAxis dataKey="n" type="number" tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                                label={{ value: 'Landau index n', angle: -90, position: 'insideLeft', fill: '#E4E3E0', fontSize: 9 }} width={50} />
-                              <Tooltip contentStyle={{ backgroundColor: '#141414', border: '1px solid #333', fontSize: '9px', color: '#E4E3E0' }}
+                                label={{ value: '1/B (T⁻¹)', position: 'insideBottom', offset: 10, fill: '#6e6e73', fontSize: 9 }} />
+                              <YAxis dataKey="n" type="number" tick={{ fontSize: 9, fontFamily: 'inherit', fill: '#6e6e73' }}
+                                label={{ value: 'Landau index n', angle: -90, position: 'insideLeft', fill: '#6e6e73', fontSize: 9 }} width={50} />
+                              <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '9px', color: '#1d1d1f' }}
                                 labelFormatter={(v: number) => `1/B = ${Number(v).toFixed(4)}`} />
-                              {hasFit && <Line data={fitLine} dataKey="n" stroke="#4ADE80" strokeWidth={1.5} strokeDasharray="5 3" dot={false} isAnimationActive={false} />}
-                              <Scatter data={intPts} dataKey="n" fill="#F27D26" isAnimationActive={false}
-                                shape={(p: any) => <circle cx={p.cx} cy={p.cy} r={4} fill="#F27D26" />} />
-                              {landauUseBoth && <Scatter data={halfPts} dataKey="n" fill="#60A5FA" isAnimationActive={false}
-                                shape={(p: any) => <circle cx={p.cx} cy={p.cy} r={3} fill="#60A5FA" />} />}
+                              {hasFit && <Line data={fitLine} dataKey="n" stroke="#28a745" strokeWidth={1.5} strokeDasharray="5 3" dot={false} isAnimationActive={false} />}
+                              <Scatter data={intPts} dataKey="n" fill="#0071e3" isAnimationActive={false}
+                                shape={(p: any) => <circle cx={p.cx} cy={p.cy} r={4} fill="#0071e3" />} />
+                              {landauUseBoth && <Scatter data={halfPts} dataKey="n" fill="#ff9500" isAnimationActive={false}
+                                shape={(p: any) => <circle cx={p.cx} cy={p.cy} r={3} fill="#ff9500" />} />}
                             </ComposedChart>
                           </ResponsiveContainer>
                         </div>
                       </div>
 
                       {/* Results panel */}
-                      <div className="bg-[#141414] text-[#E4E3E0] p-6 border border-[#E4E3E0]/10 flex flex-col justify-center gap-4">
+                      <div className="bg-white text-[#1d1d1f] p-6 border border-black/10 flex flex-col justify-center gap-4 rounded-2xl">
                         {hasFit ? (<>
-                          <div className="border border-[#F27D26]/30 bg-[#F27D26]/5 p-4">
-                            <p className="text-[8px] font-mono uppercase opacity-50 mb-1">Berry phase φ_B</p>
-                            <p className="text-2xl font-mono text-[#F27D26]">{berryMod.toFixed(3)}<span className="text-sm opacity-60"> π</span></p>
-                            <p className="text-[8px] font-mono opacity-40 mt-1">β = {beta.toFixed(3)} · intercept = {fan!.intercept.toFixed(3)}</p>
+                          <div className="border border-[#0071e3]/30 bg-[#0071e3]/5 p-4">
+                            <p className="text-[12px] tabular-nums opacity-50 mb-1">Berry phase φ_B</p>
+                            <p className="text-2xl tabular-nums text-[#0071e3]">{berryMod.toFixed(3)}<span className="text-sm opacity-60"> π</span></p>
+                            <p className="text-[12px] tabular-nums opacity-40 mt-1">β = {beta.toFixed(3)} · intercept = {fan!.intercept.toFixed(3)}</p>
                           </div>
                           <div className="grid grid-cols-2 gap-2">
-                            <div className="border border-[#E4E3E0]/10 p-3">
-                              <p className="text-[8px] font-mono uppercase opacity-50">F (slope)</p>
-                              <p className="text-[13px] font-mono text-[#4ADE80]">{fan!.slope.toFixed(1)} T</p>
+                            <div className="border border-black/10 p-3">
+                              <p className="text-[12px] tabular-nums opacity-50">F (slope)</p>
+                              <p className="text-[13px] tabular-nums text-[#28a745]">{fan!.slope.toFixed(1)} T</p>
                             </div>
-                            <div className="border border-[#E4E3E0]/10 p-3">
-                              <p className="text-[8px] font-mono uppercase opacity-50">F (FFT)</p>
-                              <p className="text-[13px] font-mono text-[#E4E3E0]">{landauSelected?.freqFFT != null ? `${landauSelected.freqFFT.toFixed(1)} T` : '—'}</p>
+                            <div className="border border-black/10 p-3">
+                              <p className="text-[12px] tabular-nums opacity-50">F (FFT)</p>
+                              <p className="text-[13px] tabular-nums text-[#1d1d1f]">{landauSelected?.freqFFT != null ? `${landauSelected.freqFFT.toFixed(1)} T` : '—'}</p>
                             </div>
-                            <div className="border border-[#E4E3E0]/10 p-3">
-                              <p className="text-[8px] font-mono uppercase opacity-50">R²</p>
-                              <p className="text-[13px] font-mono text-[#E4E3E0]">{fan!.r2.toFixed(5)}</p>
+                            <div className="border border-black/10 p-3">
+                              <p className="text-[12px] tabular-nums opacity-50">R²</p>
+                              <p className="text-[13px] tabular-nums text-[#1d1d1f]">{fan!.r2.toFixed(5)}</p>
                             </div>
-                            <div className="border border-[#E4E3E0]/10 p-3">
-                              <p className="text-[8px] font-mono uppercase opacity-50">Levels</p>
-                              <p className="text-[13px] font-mono text-[#E4E3E0]">{fan!.points.length}</p>
+                            <div className="border border-black/10 p-3">
+                              <p className="text-[12px] tabular-nums opacity-50">Levels</p>
+                              <p className="text-[13px] tabular-nums text-[#1d1d1f]">{fan!.points.length}</p>
                             </div>
                           </div>
-                          <p className="text-[8px] font-mono opacity-30 leading-relaxed">
+                          <p className="text-[12px] tabular-nums opacity-30 leading-relaxed">
                             φ_B = 2π(intercept + ½ − δ). Trivial → 0; topological → π. Flipping “integer at max/min” shifts φ_B by π — set it to match your convention (ρ minima vs σ maxima).
                           </p>
                         </>) : (
-                          <div className="text-[10px] font-mono opacity-40 text-center py-8">
+                          <div className="text-[12px] tabular-nums opacity-40 text-center py-8">
                             Not enough Landau levels detected. Lower the prominence, adjust smoothing, or widen the B-range (ROI) on the Dashboard.
                           </div>
                         )}
@@ -6830,56 +6851,56 @@ export default function App() {
                     </div>
 
                     {/* Multi-angle summary */}
-                    <div className="bg-[#141414] text-[#E4E3E0] p-6 border border-[#E4E3E0]/10">
+                    <div className="bg-white text-[#1d1d1f] p-6 border border-black/10 rounded-2xl">
                       <div className="flex justify-between items-start mb-3">
                         <div>
-                          <h4 className="text-[11px] font-mono uppercase tracking-widest opacity-50">Angle Dependence</h4>
-                          <p className="text-[10px] font-mono mt-0.5 text-[#F27D26]">Berry phase &amp; frequency per angle <span className="opacity-40 text-[#E4E3E0]">· same detection settings · {landauByAngle.length} angles fit</span></p>
+                          <h4 className="text-[11px] tabular-nums opacity-50">Angle Dependence</h4>
+                          <p className="text-[12px] tabular-nums mt-0.5 text-[#0071e3]">Berry phase &amp; frequency per angle <span className="opacity-40 text-[#1d1d1f]">· same detection settings · {landauByAngle.length} angles fit</span></p>
                         </div>
                         <button
                           onClick={() => { if (landauByAngle.length === 0) return; downloadCSV('BLM(deg),Column,F(T),intercept,BerryPhase/pi,R2,nLevels\n' + landauByAngle.map(d => `${d.blm},"${d.col}",${d.slope},${d.intercept},${(((d.berryOverPi % 2) + 2) % 2)},${d.r2},${d.nPts}`).join('\n'), 'landau_berryphase_vs_angle.csv'); }}
-                          className="px-2 py-1 font-mono text-[9px] uppercase border border-[#E4E3E0]/15 hover:bg-white/5 flex items-center gap-1"><Download size={9} />CSV</button>
+                          className="px-2 py-1 tabular-nums text-[11px] border border-black/15 hover:bg-black/5 flex items-center gap-1"><Download size={9} />CSV</button>
                       </div>
                       {landauByAngle.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <div className="border border-[#E4E3E0]/10 p-3">
-                            <p className="text-[9px] font-mono opacity-40 mb-2">Berry phase φ_B / π vs angle</p>
+                          <div className="border border-black/10 p-3">
+                            <p className="text-[11px] tabular-nums opacity-40 mb-2">Berry phase φ_B / π vs angle</p>
                             <div className="h-[220px]">
                               <ResponsiveContainer width="100%" height="100%">
                                 <ScatterChart margin={{ bottom: 16, left: 8 }}>
-                                  <CartesianGrid strokeDasharray="3 3" stroke="#222" />
-                                  <XAxis dataKey="blm" type="number" tick={{ fontSize: 8, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                                    label={{ value: 'θ (°)', position: 'insideBottom', offset: 8, fill: '#E4E3E0', fontSize: 8 }} />
-                                  <YAxis dataKey="berry" type="number" tick={{ fontSize: 8, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                                    label={{ value: 'φ_B / π', angle: -90, position: 'insideLeft', fill: '#E4E3E0', fontSize: 8 }} width={45} />
-                                  <Tooltip contentStyle={{ backgroundColor: '#141414', border: '1px solid #333', fontSize: '8px', color: '#E4E3E0' }} />
+                                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e5ea" />
+                                  <XAxis dataKey="blm" type="number" tick={{ fontSize: 8, fontFamily: 'inherit', fill: '#6e6e73' }}
+                                    label={{ value: 'θ (°)', position: 'insideBottom', offset: 8, fill: '#6e6e73', fontSize: 8 }} />
+                                  <YAxis dataKey="berry" type="number" tick={{ fontSize: 8, fontFamily: 'inherit', fill: '#6e6e73' }}
+                                    label={{ value: 'φ_B / π', angle: -90, position: 'insideLeft', fill: '#6e6e73', fontSize: 8 }} width={45} />
+                                  <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '8px', color: '#1d1d1f' }} />
                                   <Scatter data={landauByAngle.map(d => ({ blm: d.blm, berry: ((d.berryOverPi % 2) + 2) % 2 }))}
-                                    fill="#F27D26" shape="circle" isAnimationActive={false} />
+                                    fill="#0071e3" shape="circle" isAnimationActive={false} />
                                 </ScatterChart>
                               </ResponsiveContainer>
                             </div>
                           </div>
-                          <div className="border border-[#E4E3E0]/10 p-3">
-                            <p className="text-[9px] font-mono opacity-40 mb-2">Frequency F vs angle (fan slope)</p>
+                          <div className="border border-black/10 p-3">
+                            <p className="text-[11px] tabular-nums opacity-40 mb-2">Frequency F vs angle (fan slope)</p>
                             <div className="h-[220px]">
                               <ResponsiveContainer width="100%" height="100%">
                                 <ScatterChart margin={{ bottom: 16, left: 8 }}>
-                                  <CartesianGrid strokeDasharray="3 3" stroke="#222" />
-                                  <XAxis dataKey="blm" type="number" tick={{ fontSize: 8, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                                    label={{ value: 'θ (°)', position: 'insideBottom', offset: 8, fill: '#E4E3E0', fontSize: 8 }} />
-                                  <YAxis dataKey="slope" type="number" tick={{ fontSize: 8, fontFamily: 'monospace', fill: '#E4E3E0' }}
+                                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e5ea" />
+                                  <XAxis dataKey="blm" type="number" tick={{ fontSize: 8, fontFamily: 'inherit', fill: '#6e6e73' }}
+                                    label={{ value: 'θ (°)', position: 'insideBottom', offset: 8, fill: '#6e6e73', fontSize: 8 }} />
+                                  <YAxis dataKey="slope" type="number" tick={{ fontSize: 8, fontFamily: 'inherit', fill: '#6e6e73' }}
                                     tickFormatter={(v: number) => v.toFixed(0)} width={50}
-                                    label={{ value: 'F (T)', angle: -90, position: 'insideLeft', fill: '#E4E3E0', fontSize: 8 }} />
-                                  <Tooltip contentStyle={{ backgroundColor: '#141414', border: '1px solid #333', fontSize: '8px', color: '#E4E3E0' }} />
+                                    label={{ value: 'F (T)', angle: -90, position: 'insideLeft', fill: '#6e6e73', fontSize: 8 }} />
+                                  <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '8px', color: '#1d1d1f' }} />
                                   <Scatter data={landauByAngle.map(d => ({ blm: d.blm, slope: d.slope }))}
-                                    fill="#4ADE80" shape="diamond" isAnimationActive={false} />
+                                    fill="#28a745" shape="diamond" isAnimationActive={false} />
                                 </ScatterChart>
                               </ResponsiveContainer>
                             </div>
                           </div>
                         </div>
                       ) : (
-                        <div className="flex items-center justify-center h-24 text-[10px] font-mono opacity-30">No angles produced a valid fan with current settings.</div>
+                        <div className="flex items-center justify-center h-24 text-[12px] tabular-nums opacity-30">No angles produced a valid fan with current settings.</div>
                       )}
                     </div>
                   </>
@@ -6888,51 +6909,51 @@ export default function App() {
             </div>
           ) : activeTab === 'symmetry' ? (
             <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="bg-[#141414] text-[#E4E3E0] p-8 border border-[#E4E3E0]/10">
+              <div className="bg-white text-[#1d1d1f] p-8 border border-black/10 rounded-2xl">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-3">
-                    <RefreshCw size={24} className="text-[#F27D26]" />
-                    <h3 className="text-2xl font-serif italic font-bold">Symmetry Analysis</h3>
+                    <RefreshCw size={24} className="text-[#0071e3]" />
+                    <h3 className="text-2xl font-semibold">Symmetry Analysis</h3>
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="flex flex-col">
-                      <label className="text-[10px] font-mono uppercase opacity-60 mb-1">Symmetry Center (°)</label>
+                      <label className="text-[12px] tabular-nums opacity-60 mb-1">Symmetry Center (°)</label>
                       <input 
                         type="number" 
                         step="0.1"
                         value={symmetryCenter} 
                         onChange={(e) => setSymmetryCenter(parseFloat(e.target.value) || 0)}
-                        className="bg-transparent border-b border-[#E4E3E0]/20 text-[#E4E3E0] font-mono text-xs focus:outline-none focus:border-[#F27D26] w-24"
+                        className="bg-transparent border-b border-black/20 text-[#1d1d1f] tabular-nums text-xs focus:outline-none focus:border-[#0071e3] w-24"
                       />
                     </div>
                     <div className="flex flex-col">
-                      <label className="text-[10px] font-mono uppercase opacity-60 mb-1">Min Freq (T)</label>
+                      <label className="text-[12px] tabular-nums opacity-60 mb-1">Min Freq (T)</label>
                       <input 
                         type="number" 
                         value={symmetryMinFreq} 
                         onChange={(e) => setSymmetryMinFreq(parseFloat(e.target.value) || 0)}
-                        className="bg-transparent border-b border-[#E4E3E0]/20 text-[#E4E3E0] font-mono text-xs focus:outline-none focus:border-[#F27D26] w-20"
+                        className="bg-transparent border-b border-black/20 text-[#1d1d1f] tabular-nums text-xs focus:outline-none focus:border-[#0071e3] w-20"
                       />
                     </div>
                     <div className="flex flex-col">
-                      <label className="text-[10px] font-mono uppercase opacity-60 mb-1">Max Freq (T)</label>
+                      <label className="text-[12px] tabular-nums opacity-60 mb-1">Max Freq (T)</label>
                       <input 
                         type="number" 
                         value={symmetryMaxFreq} 
                         onChange={(e) => setSymmetryMaxFreq(parseFloat(e.target.value) || 0)}
-                        className="bg-transparent border-b border-[#E4E3E0]/20 text-[#E4E3E0] font-mono text-xs focus:outline-none focus:border-[#F27D26] w-20"
+                        className="bg-transparent border-b border-black/20 text-[#1d1d1f] tabular-nums text-xs focus:outline-none focus:border-[#0071e3] w-20"
                       />
                     </div>
                     <div className="flex gap-2">
-                      <button onClick={() => setSymmetryCenter(0)} className="px-2 py-1 font-mono text-[10px] border border-white/20 hover:bg-white/10">0°</button>
-                      <button onClick={() => setSymmetryCenter(90)} className="px-2 py-1 font-mono text-[10px] border border-white/20 hover:bg-white/10">90°</button>
-                      <button onClick={() => setSymmetryCenter(180)} className="px-2 py-1 font-mono text-[10px] border border-white/20 hover:bg-white/10">180°</button>
+                      <button onClick={() => setSymmetryCenter(0)} className="px-2 py-1 tabular-nums text-[12px] border border-black/15 hover:bg-black/5">0°</button>
+                      <button onClick={() => setSymmetryCenter(90)} className="px-2 py-1 tabular-nums text-[12px] border border-black/15 hover:bg-black/5">90°</button>
+                      <button onClick={() => setSymmetryCenter(180)} className="px-2 py-1 tabular-nums text-[12px] border border-black/15 hover:bg-black/5">180°</button>
                       <button 
                         onClick={() => {
                           setSymmetryMinFreq(0);
                           setSymmetryMaxFreq(globalSuggestedMaxFreq);
                         }}
-                        className="px-2 py-1 font-mono text-[10px] border border-[#F27D26]/40 text-[#F27D26] hover:bg-[#F27D26]/10"
+                        className="px-2 py-1 tabular-nums text-[12px] border border-[#0071e3]/40 text-[#0071e3] hover:bg-[#0071e3]/10"
                       >
                         Auto Range
                       </button>
@@ -6948,7 +6969,7 @@ export default function App() {
                           });
                           saveText(csv, `symmetry_analysis_center_${symmetryCenter}.csv`, 'text/csv');
                         }}
-                        className="ml-4 bg-[#F27D26] text-white px-3 py-1 font-mono text-[10px] uppercase tracking-widest hover:bg-[#F27D26]/80 flex items-center gap-2"
+                        className="ml-4 bg-[#0071e3] text-white px-3 py-1 tabular-nums text-[12px] hover:bg-[#0071e3]/80 flex items-center gap-2"
                       >
                         <Download size={12} />
                         Export Symmetry CSV
@@ -6959,34 +6980,34 @@ export default function App() {
               </div>
 
               <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
-                <div className="xl:col-span-8 bg-[#141414] text-[#E4E3E0] p-8 border border-[#E4E3E0]/10">
-                  <h4 className="text-xs font-mono uppercase opacity-60 mb-6">Mirrored Branch Visualization (Center: {symmetryCenter}°)</h4>
+                <div className="xl:col-span-8 bg-white text-[#1d1d1f] p-8 border border-black/10 rounded-2xl">
+                  <h4 className="text-xs tabular-nums opacity-60 mb-6">Mirrored Branch Visualization (Center: {symmetryCenter}°)</h4>
                   <div className="h-[600px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <ScatterChart margin={{ bottom: 20, left: 10 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#333" />
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5ea" />
                         <XAxis 
                           dataKey="blm" 
                           type="number" 
                           domain={['auto', 'auto']} 
-                          tick={{ fontSize: 10, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                          label={{ value: 'BLM', position: 'insideBottom', offset: 10, fill: '#E4E3E0', fontSize: 10 }}
+                          tick={{ fontSize: 10, fontFamily: 'inherit', fill: '#6e6e73' }}
+                          label={{ value: 'BLM', position: 'insideBottom', offset: 10, fill: '#6e6e73', fontSize: 10 }}
                         />
                         <YAxis 
                           dataKey="freq" 
                           type="number" 
                           domain={[symmetryMinFreq, symmetryMaxFreq]}
-                          tick={{ fontSize: 10, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                          label={{ value: 'Frequency (T)', angle: -90, position: 'insideLeft', fill: '#E4E3E0', fontSize: 10 }}
+                          tick={{ fontSize: 10, fontFamily: 'inherit', fill: '#6e6e73' }}
+                          label={{ value: 'Frequency (T)', angle: -90, position: 'insideLeft', fill: '#6e6e73', fontSize: 10 }}
                         />
                         <Tooltip 
                           cursor={{ strokeDasharray: '3 3' }}
-                          contentStyle={{ backgroundColor: '#141414', border: '1px solid #E4E3E0', fontSize: '10px', color: '#E4E3E0' }}
+                          contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '10px', color: '#1d1d1f' }}
                         />
-                        <Legend wrapperStyle={{ paddingTop: '20px', fontSize: '10px', fontFamily: 'monospace' }} />
+                        <Legend wrapperStyle={{ paddingTop: '20px', fontSize: '10px', fontFamily: 'inherit' }} />
                         
                         {/* Reference line for symmetry center */}
-                        <ReferenceLine x={symmetryCenter} stroke="#F27D26" strokeDasharray="5 5" label={{ value: 'Center', position: 'top', fill: '#F27D26', fontSize: 10 }} />
+                        <ReferenceLine x={symmetryCenter} stroke="#0071e3" strokeDasharray="5 5" label={{ value: 'Center', position: 'top', fill: '#0071e3', fontSize: 10 }} />
 
                         {branchesWithFits.map((branch, idx) => {
                           const color = `hsl(${(idx * 137) % 360}, 70%, 60%)`;
@@ -7022,18 +7043,18 @@ export default function App() {
                       </ScatterChart>
                     </ResponsiveContainer>
                   </div>
-                  <p className="text-[10px] font-mono mt-4 opacity-40 italic">
+                  <p className="text-[12px] tabular-nums mt-4 opacity-40">
                     Triangles represent data points mirrored around {symmetryCenter}°. 
                     Overlap between circles and triangles indicates symmetry.
                   </p>
                 </div>
 
-                <div className="xl:col-span-4 bg-[#141414] text-[#E4E3E0] p-8 border border-[#E4E3E0]/10 flex flex-col">
-                  <h4 className="text-xs font-mono uppercase opacity-60 mb-6">Symmetry Fit Summary</h4>
+                <div className="xl:col-span-4 bg-white text-[#1d1d1f] p-8 border border-black/10 flex flex-col rounded-2xl">
+                  <h4 className="text-xs tabular-nums opacity-60 mb-6">Symmetry Fit Summary</h4>
                   <div className="flex-1 overflow-auto">
-                    <table className="w-full text-[10px] font-mono">
+                    <table className="w-full text-[12px] tabular-nums">
                       <thead>
-                        <tr className="border-b border-white/10 text-left opacity-60">
+                        <tr className="border-b border-black/10 text-left opacity-60">
                           <th className="pb-2 font-normal">Branch</th>
                           <th className="pb-2 font-normal">Opt. Center</th>
                           <th className="pb-2 font-normal">R²</th>
@@ -7042,7 +7063,7 @@ export default function App() {
                       </thead>
                       <tbody>
                         {branchesWithFits.filter(b => selectedBranchIds.has(b.id)).map((branch) => (
-                          <tr key={branch.id} className="border-b border-white/5 hover:bg-white/5">
+                          <tr key={branch.id} className="border-b border-black/5 hover:bg-black/5">
                             <td className="py-2 flex items-center gap-2">
                               <div className="w-2 h-2 rounded-full" style={{ backgroundColor: `hsl(${(branches.findIndex(br => br.id === branch.id) * 137) % 360}, 70%, 60%)` }} />
                               {branch.name}
@@ -7055,10 +7076,10 @@ export default function App() {
                       </tbody>
                     </table>
                   </div>
-                  <div className="mt-8 pt-6 border-t border-white/10">
-                    <div className="bg-white/5 p-4 border border-white/10">
-                      <h5 className="text-[10px] font-mono uppercase opacity-60 mb-2">Analysis Note</h5>
-                      <p className="text-[10px] leading-relaxed opacity-80 italic">
+                  <div className="mt-8 pt-6 border-t border-black/10">
+                    <div className="bg-black/5 p-4 border border-black/10">
+                      <h5 className="text-[12px] tabular-nums opacity-60 mb-2">Analysis Note</h5>
+                      <p className="text-[12px] leading-relaxed opacity-80">
                         "Opt. Center" is the angle that maximizes the 1/cos(θ-φ) fit for each branch within the current frequency range. 
                         If this value deviates significantly from the global center ({symmetryCenter}°), it may indicate local misalignment or complex band structure.
                       </p>
@@ -7069,23 +7090,23 @@ export default function App() {
             </div>
           ) : activeTab === 'branch' ? (
             <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="bg-[#141414] text-[#E4E3E0] p-8 border border-[#E4E3E0]/10">
+              <div className="bg-white text-[#1d1d1f] p-8 border border-black/10 rounded-2xl">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-3">
-                    <GitBranch size={24} className="text-[#F27D26]" />
-                    <h3 className="text-2xl font-serif italic font-bold">Branch Analysis</h3>
-                    <div className="flex items-center gap-3 ml-4 pl-4 border-l border-[#E4E3E0]/15">
+                    <GitBranch size={24} className="text-[#0071e3]" />
+                    <h3 className="text-2xl font-semibold">Branch Analysis</h3>
+                    <div className="flex items-center gap-3 ml-4 pl-4 border-l border-black/15">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[8px] font-mono uppercase opacity-40">Freq Tol (T)</span>
+                        <span className="text-[12px] tabular-nums opacity-40">Freq Tol (T)</span>
                         <input type="number" step="0.1" min="0.01" value={branchTolerance}
                           onChange={(e) => setBranchTolerance(parseFloat(e.target.value) || 0.5)}
-                          className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[10px] w-16 px-2 py-1 text-center focus:outline-none focus:border-[#F27D26]" />
+                          className="bg-white border border-black/15 text-[#1d1d1f] tabular-nums text-[12px] w-16 px-2 py-1 text-center focus:outline-none focus:border-[#0071e3]" />
                       </div>
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[8px] font-mono uppercase opacity-40">Min Peaks</span>
+                        <span className="text-[12px] tabular-nums opacity-40">Min Peaks</span>
                         <input type="number" min="2" value={minPeaksPerBranch}
                           onChange={(e) => setMinPeaksPerBranch(parseInt(e.target.value) || 3)}
-                          className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[10px] w-14 px-2 py-1 text-center focus:outline-none focus:border-[#F27D26]" />
+                          className="bg-white border border-black/15 text-[#1d1d1f] tabular-nums text-[12px] w-14 px-2 py-1 text-center focus:outline-none focus:border-[#0071e3]" />
                       </div>
                     </div>
                   </div>
@@ -7120,7 +7141,7 @@ export default function App() {
 
                         saveText(csv, `branch_analysis_wide.csv`, 'text/csv');
                       }}
-                      className="bg-white/10 text-white px-4 py-2 font-mono text-[10px] uppercase tracking-widest hover:bg-white/20 border border-white/10"
+                      className="bg-black/5 text-[#1d1d1f] px-4 py-2 tabular-nums text-[12px] hover:bg-black/10 border border-black/10"
                     >
                       <Download size={14} className="mr-2 inline" />
                       Export Wide CSV
@@ -7138,7 +7159,7 @@ export default function App() {
                         });
                         saveText(csv, `branch_analysis_combined.csv`, 'text/csv');
                       }}
-                      className="bg-[#F27D26] text-white px-4 py-2 font-mono text-[10px] uppercase tracking-widest hover:bg-opacity-80"
+                      className="bg-[#0071e3] text-white px-4 py-2 tabular-nums text-[12px] hover:bg-opacity-80"
                     >
                       <Download size={14} className="mr-2 inline" />
                       Export Combined CSV
@@ -7148,46 +7169,46 @@ export default function App() {
               </div>
 
               {branches.length === 0 && others.length === 0 ? (
-                <div className="h-[500px] border-2 border-dashed border-[#141414]/20 flex flex-col items-center justify-center text-[#141414]/40 bg-white/30">
+                <div className="h-[500px] border-2 border-dashed border-black/20 flex flex-col items-center justify-center text-[#1d1d1f]/40 bg-white">
                   <GitBranch size={48} strokeWidth={1} />
-                  <p className="mt-4 font-serif italic text-xl">No Branches Detected</p>
-                  <p className="text-xs font-mono uppercase tracking-widest mt-2">Process all files to run branch analysis</p>
+                  <p className="mt-4 text-xl">No Branches Detected</p>
+                  <p className="text-xs tabular-nums mt-2">Process all files to run branch analysis</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-12">
-                  <div className="bg-[#141414] text-[#E4E3E0] p-8 border border-[#E4E3E0]/10">
-                    <div className="h-[600px] w-full bg-[#141414]/50 p-6 border border-[#E4E3E0]/5">
-                      <h4 className="text-xs font-mono uppercase opacity-60 mb-6 text-center">Frequency vs BLM (Branches)</h4>
+                  <div className="bg-white text-[#1d1d1f] p-8 border border-black/10 rounded-2xl">
+                    <div className="h-[600px] w-full bg-black/50 p-6 border border-black/5">
+                      <h4 className="text-xs tabular-nums opacity-60 mb-6 text-center">Frequency vs BLM (Branches)</h4>
                       <ResponsiveContainer width="100%" height="90%">
                         <ScatterChart margin={{ bottom: 20 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#333" />
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5ea" />
                           <XAxis 
                             dataKey="blm" 
                             type="number"
-                            tick={{ fontSize: 10, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                            label={{ value: 'BLM', position: 'insideBottom', offset: 10, fill: '#E4E3E0', fontSize: 10 }}
+                            tick={{ fontSize: 10, fontFamily: 'inherit', fill: '#6e6e73' }}
+                            label={{ value: 'BLM', position: 'insideBottom', offset: 10, fill: '#6e6e73', fontSize: 10 }}
                           />
                           <YAxis 
                             dataKey="freq"
                             type="number"
                             domain={[0, autoFFTRange ? globalSuggestedMaxFreq : manualMaxFreq]}
                             allowDataOverflow={true}
-                            tick={{ fontSize: 10, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                            label={{ value: 'Frequency (T)', angle: -90, position: 'insideLeft', fill: '#E4E3E0', fontSize: 10 }}
+                            tick={{ fontSize: 10, fontFamily: 'inherit', fill: '#6e6e73' }}
+                            label={{ value: 'Frequency (T)', angle: -90, position: 'insideLeft', fill: '#6e6e73', fontSize: 10 }}
                           />
                           <Tooltip 
-                            contentStyle={{ backgroundColor: '#141414', border: '1px solid #E4E3E0', fontSize: '10px', color: '#E4E3E0' }}
+                            contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '10px', color: '#1d1d1f' }}
                             cursor={{ strokeDasharray: '3 3' }}
                             content={({ active, payload }) => {
                               if (active && payload && payload.length) {
                                 const data = payload[0].payload;
                                 return (
-                                  <div className="bg-[#141414] border border-[#E4E3E0] p-2 font-mono text-[10px] text-[#E4E3E0] shadow-xl">
-                                    <p className="text-[#F27D26] font-bold mb-1 border-b border-[#E4E3E0]/20 pb-1">{data.branchName || 'Others'}</p>
+                                  <div className="bg-white border border-[#d2d2d7] p-2 tabular-nums text-[12px] text-[#1d1d1f] shadow-xl">
+                                    <p className="text-[#0071e3] font-semibold mb-1 border-b border-black/20 pb-1">{data.branchName || 'Others'}</p>
                                     <p><span className="opacity-60">Frequency:</span> {data.freq.toFixed(4)} T</p>
                                     <p><span className="opacity-60">BLM:</span> {data.blm}°</p>
                                     <p><span className="opacity-60">Amplitude:</span> {data.amp.toExponential(4)}</p>
-                                    <p className="text-[8px] opacity-40 mt-1 truncate max-w-[150px]">{data.fileName}</p>
+                                    <p className="text-[12px] opacity-40 mt-1 truncate max-w-[150px]">{data.fileName}</p>
                                   </div>
                                 );
                               }
@@ -7200,7 +7221,7 @@ export default function App() {
                           <Scatter 
                             name="Others" 
                             data={others.map(p => ({ ...p, branchName: 'Others' }))} 
-                            fill="#444" 
+                            fill="#c7c7cc" 
                             shape="circle"
                             opacity={0.4}
                           />
@@ -7247,29 +7268,29 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="bg-[#141414] text-[#E4E3E0] p-8 border border-[#E4E3E0]/10">
-                    <h4 className="text-sm font-mono uppercase tracking-widest text-[#F27D26] mb-8">Branch Comparison Table (Wide Format)</h4>
-                    <div className="overflow-x-auto border border-white/10 max-h-[600px]">
-                      <table className="w-full text-left font-mono text-[10px] border-collapse">
+                  <div className="bg-white text-[#1d1d1f] p-8 border border-black/10 rounded-2xl">
+                    <h4 className="text-sm tabular-nums text-[#0071e3] mb-8">Branch Comparison Table (Wide Format)</h4>
+                    <div className="overflow-x-auto border border-black/10 max-h-[600px]">
+                      <table className="w-full text-left tabular-nums text-[12px] border-collapse">
                         <thead>
-                          <tr className="border-b border-white/20 bg-white/5">
-                            <th className="py-3 px-4 uppercase sticky left-0 bg-[#141414] z-20 border-r border-white/10">BLM</th>
+                          <tr className="border-b border-black/15 bg-black/5">
+                            <th className="py-3 px-4 sticky left-0 bg-white z-20 border-r border-black/10">BLM</th>
                             {branchesWithFits.map(b => (
-                              <th key={b.id} className="py-3 px-4 uppercase text-center border-r border-white/10 min-w-[120px]">
+                              <th key={b.id} className="py-3 px-4 text-center border-r border-black/10 min-w-[120px]">
                                 {b.name}
                               </th>
                             ))}
-                            <th className="py-3 px-4 uppercase text-center opacity-40 min-w-[120px]">Others</th>
+                            <th className="py-3 px-4 text-center opacity-40 min-w-[120px]">Others</th>
                           </tr>
                         </thead>
                         <tbody>
                           {branchComparisonTable.map((row, rIdx) => (
-                            <tr key={rIdx} className="border-b border-white/5 hover:bg-white/5">
-                              <td className="py-2 px-4 font-bold sticky left-0 bg-[#141414] z-10 border-r border-white/10">{row.blm}°</td>
+                            <tr key={rIdx} className="border-b border-black/5 hover:bg-black/5">
+                              <td className="py-2 px-4 font-semibold sticky left-0 bg-white z-10 border-r border-black/10">{row.blm}°</td>
                               {branchesWithFits.map(b => (
-                                <td key={b.id} className="py-2 px-4 text-center border-r border-white/10">
+                                <td key={b.id} className="py-2 px-4 text-center border-r border-black/10">
                                   {row[b.id] !== null ? (
-                                    <span className="text-[#F27D26] font-bold">{row[b.id].freq.toFixed(4)}</span>
+                                    <span className="text-[#0071e3] font-semibold">{row[b.id].freq.toFixed(4)}</span>
                                   ) : (
                                     <span className="opacity-20">-</span>
                                   )}
@@ -7282,20 +7303,20 @@ export default function App() {
                           ))}
                         </tbody>
                         {branchesWithFits.some(b => b.fit) && (
-                          <tfoot className="sticky bottom-0 bg-[#141414] border-t-2 border-[#F27D26]/30">
+                          <tfoot className="sticky bottom-0 bg-white border-t-2 border-[#0071e3]/30">
                             <tr>
-                              <td className="py-3 px-4 font-bold uppercase text-[9px] opacity-60 border-r border-white/10">F₀ (Fit)</td>
+                              <td className="py-3 px-4 font-semibold text-[11px] opacity-60 border-r border-black/10">F₀ (Fit)</td>
                               {branchesWithFits.map(b => (
-                                <td key={b.id} className="py-3 px-4 text-center border-r border-white/10">
+                                <td key={b.id} className="py-3 px-4 text-center border-r border-black/10">
                                   {b.fit ? (
                                     <div className="flex flex-col">
-                                      <span className="text-[#F27D26] font-bold">{b.fit.f0.toFixed(4)} T</span>
-                                      <span className="text-[8px] opacity-40">R²: {b.fit.r2.toFixed(3)}</span>
+                                      <span className="text-[#0071e3] font-semibold">{b.fit.f0.toFixed(4)} T</span>
+                                      <span className="text-[12px] opacity-40">R²: {b.fit.r2.toFixed(3)}</span>
                                     </div>
                                   ) : '-'}
                                 </td>
                               ))}
-                              <td className="py-3 px-4 border-l border-white/10"></td>
+                              <td className="py-3 px-4 border-l border-black/10"></td>
                             </tr>
                           </tfoot>
                         )}
@@ -7303,7 +7324,7 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="bg-[#141414] text-[#E4E3E0] p-8 border border-[#E4E3E0]/10">
+                  <div className="bg-white text-[#1d1d1f] p-8 border border-black/10 rounded-2xl">
                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-12">
                       {branchesWithFits.map((branch, idx) => {
                         const color = `hsl(${(idx * 137) % 360}, 70%, 60%)`;
@@ -7327,7 +7348,7 @@ export default function App() {
                         }
 
                         return (
-                          <div key={branch.id} className="bg-white/5 p-6 border border-white/10">
+                          <div key={branch.id} className="bg-black/5 p-6 border border-black/10">
                             <div className="flex justify-between items-center mb-6">
                               <div className="flex items-center gap-4">
                                 <input 
@@ -7339,35 +7360,35 @@ export default function App() {
                                     else next.add(branch.id);
                                     setSelectedBranchIds(next);
                                   }}
-                                  className="w-4 h-4 accent-[#F27D26]"
+                                  className="w-4 h-4 accent-[#0071e3]"
                                 />
-                                <h5 className="text-xl font-serif italic font-bold">{branch.name}</h5>
+                                <h5 className="text-xl font-semibold">{branch.name}</h5>
                               </div>
-                              <div className="flex gap-4 text-[10px] font-mono uppercase tracking-widest">
+                              <div className="flex gap-4 text-[12px] tabular-nums">
                                 <span className="opacity-40">{branch.peaks.length} Points</span>
                               </div>
                             </div>
                             
-                            <div className="h-[300px] w-full bg-black/20 p-4 border border-white/5">
+                            <div className="h-[300px] w-full bg-[#f5f5f7] p-4 border border-black/5">
                               <ResponsiveContainer width="100%" height="100%">
                                 <ScatterChart margin={{ bottom: 20, left: 20 }}>
-                                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#333" />
+                                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5ea" />
                                   <XAxis 
                                     dataKey="blm" 
                                     type="number"
                                     domain={[Math.floor(minBlm - 5), Math.ceil(maxBlm + 5)]}
-                                    tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                                    label={{ value: 'BLM', position: 'insideBottom', offset: 10, fill: '#E4E3E0', fontSize: 9 }}
+                                    tick={{ fontSize: 9, fontFamily: 'inherit', fill: '#6e6e73' }}
+                                    label={{ value: 'BLM', position: 'insideBottom', offset: 10, fill: '#6e6e73', fontSize: 9 }}
                                   />
                                   <YAxis 
                                     dataKey="freq"
                                     type="number"
                                     domain={[Math.max(0, minFreq - padding), maxFreq + padding]}
-                                    tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                                    label={{ value: 'Freq (T)', angle: -90, position: 'insideLeft', fill: '#E4E3E0', fontSize: 9 }}
+                                    tick={{ fontSize: 9, fontFamily: 'inherit', fill: '#6e6e73' }}
+                                    label={{ value: 'Freq (T)', angle: -90, position: 'insideLeft', fill: '#6e6e73', fontSize: 9 }}
                                   />
                                   <Tooltip 
-                                    contentStyle={{ backgroundColor: '#141414', border: '1px solid #E4E3E0', fontSize: '9px', color: '#E4E3E0' }}
+                                    contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '9px', color: '#1d1d1f' }}
                                     cursor={{ strokeDasharray: '3 3' }}
                                   />
                                   <Scatter 
@@ -7390,28 +7411,28 @@ export default function App() {
                             </div>
                             
                             {branch.fit && (
-                              <div className="mt-4 p-3 bg-[#F27D26]/10 border border-[#F27D26]/20 flex justify-around font-mono text-[10px] uppercase tracking-widest">
-                                <div><span className="opacity-60">F₀:</span> <span className="text-[#F27D26] font-bold">{branch.fit.f0.toFixed(4)} T</span></div>
-                                <div><span className="opacity-60">R²:</span> <span className="text-[#F27D26] font-bold">{branch.fit.r2.toFixed(4)}</span></div>
+                              <div className="mt-4 p-3 bg-[#0071e3]/10 border border-[#0071e3]/20 flex justify-around tabular-nums text-[12px]">
+                                <div><span className="opacity-60">F₀:</span> <span className="text-[#0071e3] font-semibold">{branch.fit.f0.toFixed(4)} T</span></div>
+                                <div><span className="opacity-60">R²:</span> <span className="text-[#0071e3] font-semibold">{branch.fit.r2.toFixed(4)}</span></div>
                                 <div><span className="opacity-60">Model:</span> F₀/cos(θ-{branch.fit.cosOffset}°)</div>
                               </div>
                             )}
                             
                             <div className="mt-6 overflow-x-auto">
-                              <table className="w-full text-left font-mono text-[9px]">
+                              <table className="w-full text-left tabular-nums text-[11px]">
                                 <thead>
-                                  <tr className="border-b border-white/10 text-white/40">
-                                    <th className="py-1 px-2 uppercase">File</th>
-                                    <th className="py-1 px-2 uppercase text-center">BLM</th>
-                                    <th className="py-1 px-2 uppercase text-right">Freq</th>
-                                    <th className="py-1 px-2 uppercase text-right">Amp</th>
+                                  <tr className="border-b border-black/10 text-[#1d1d1f]/40">
+                                    <th className="py-1 px-2">File</th>
+                                    <th className="py-1 px-2 text-center">BLM</th>
+                                    <th className="py-1 px-2 text-right">Freq</th>
+                                    <th className="py-1 px-2 text-right">Amp</th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {branch.peaks.map((p, pIdx) => (
-                                    <tr key={pIdx} className="border-b border-white/5 hover:bg-white/5">
+                                    <tr key={pIdx} className="border-b border-black/5 hover:bg-black/5">
                                       <td className="py-1 px-2 truncate max-w-[120px] opacity-60">{p.fileName}</td>
-                                      <td className="py-1 px-2 text-center font-bold">{p.blm}°</td>
+                                      <td className="py-1 px-2 text-center font-semibold">{p.blm}°</td>
                                       <td className="py-1 px-2 text-right">{p.freq.toFixed(4)}</td>
                                       <td className="py-1 px-2 text-right opacity-60">{p.amp.toExponential(2)}</td>
                                     </tr>
@@ -7425,11 +7446,11 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="bg-[#141414] text-[#E4E3E0] p-8 border border-[#E4E3E0]/10">
-                    <h4 className="text-sm font-mono uppercase tracking-widest text-[#F27D26] mb-6">Branch Summary</h4>
+                  <div className="bg-white text-[#1d1d1f] p-8 border border-black/10 rounded-2xl">
+                    <h4 className="text-sm tabular-nums text-[#0071e3] mb-6">Branch Summary</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {branchesWithFits.map((branch, idx) => (
-                        <div key={branch.id} className={`bg-white/5 p-4 border transition-all ${selectedBranchIds.has(branch.id) ? 'border-[#F27D26]' : 'border-white/10'} flex flex-col justify-between`}>
+                        <div key={branch.id} className={`bg-black/5 p-4 border transition-all ${selectedBranchIds.has(branch.id) ? 'border-[#0071e3]' : 'border-black/10'} flex flex-col justify-between`}>
                           <div>
                             <div className="flex justify-between items-center mb-2">
                               <div className="flex items-center gap-2">
@@ -7442,32 +7463,32 @@ export default function App() {
                                     else next.add(branch.id);
                                     setSelectedBranchIds(next);
                                   }}
-                                  className="w-3 h-3 accent-[#F27D26]"
+                                  className="w-3 h-3 accent-[#0071e3]"
                                 />
-                                <h5 className="font-bold font-serif italic text-lg">{branch.name}</h5>
+                                <h5 className="font-semibold text-lg">{branch.name}</h5>
                               </div>
-                              <span className="text-[9px] font-mono bg-[#F27D26] text-[#141414] px-2 py-0.5 uppercase">{branch.peaks.length} Points</span>
+                              <span className="text-[11px] tabular-nums bg-[#0071e3] text-white px-2 py-0.5">{branch.peaks.length} Points</span>
                             </div>
                             <div className="space-y-1 mb-4">
-                              <div className="flex justify-between text-[10px] font-mono">
+                              <div className="flex justify-between text-[12px] tabular-nums">
                                 <span className="opacity-40">Avg Freq:</span>
                                 <span>{_.meanBy(branch.peaks, 'freq').toFixed(2)} T</span>
                               </div>
-                              <div className="flex justify-between text-[10px] font-mono">
+                              <div className="flex justify-between text-[12px] tabular-nums">
                                 <span className="opacity-40">BLM Range:</span>
                                 <span>
                                   {Math.min(...branch.peaks.map(p => p.blm))}° - {Math.max(...branch.peaks.map(p => p.blm))}°
                                 </span>
                               </div>
                               {branch.fit && (
-                                <div className="pt-2 mt-2 border-t border-white/10 space-y-1">
-                                  <div className="flex justify-between text-[10px] font-mono text-[#F27D26]">
+                                <div className="pt-2 mt-2 border-t border-black/10 space-y-1">
+                                  <div className="flex justify-between text-[12px] tabular-nums text-[#0071e3]">
                                     <span className="opacity-60">F₀:</span>
-                                    <span className="font-bold">{branch.fit.f0.toFixed(4)} T</span>
+                                    <span className="font-semibold">{branch.fit.f0.toFixed(4)} T</span>
                                   </div>
-                                  <div className="flex justify-between text-[10px] font-mono text-[#F27D26]">
+                                  <div className="flex justify-between text-[12px] tabular-nums text-[#0071e3]">
                                     <span className="opacity-60">R²:</span>
-                                    <span className="font-bold">{branch.fit.r2.toFixed(4)}</span>
+                                    <span className="font-semibold">{branch.fit.r2.toFixed(4)}</span>
                                   </div>
                                 </div>
                               )}
@@ -7479,25 +7500,25 @@ export default function App() {
                   </div>
 
                   {others.length > 0 && (
-                    <div className="bg-[#141414] text-[#E4E3E0] p-8 border border-[#E4E3E0]/10">
-                      <h4 className="text-sm font-mono uppercase tracking-widest text-gray-500 mb-6">Unassigned Peaks (Others)</h4>
+                    <div className="bg-white text-[#1d1d1f] p-8 border border-black/10 rounded-2xl">
+                      <h4 className="text-sm tabular-nums text-gray-500 mb-6">Unassigned Peaks (Others)</h4>
                       <div className="overflow-x-auto">
-                        <table className="w-full text-left font-mono text-[10px]">
+                        <table className="w-full text-left tabular-nums text-[12px]">
                           <thead>
-                            <tr className="border-b border-[#E4E3E0]/20 text-gray-500">
-                              <th className="py-2 px-4 uppercase tracking-wider">File Name</th>
-                              <th className="py-2 px-4 uppercase tracking-wider text-center">BLM</th>
-                              <th className="py-2 px-4 uppercase tracking-wider text-right">Frequency (T)</th>
-                              <th className="py-2 px-4 uppercase tracking-wider text-right">Amplitude</th>
+                            <tr className="border-b border-black/20 text-gray-500">
+                              <th className="py-2 px-4">File Name</th>
+                              <th className="py-2 px-4 text-center">BLM</th>
+                              <th className="py-2 px-4 text-right">Frequency (T)</th>
+                              <th className="py-2 px-4 text-right">Amplitude</th>
                             </tr>
                           </thead>
                           <tbody>
                             {others.map((item, idx) => (
-                              <tr key={idx} className="border-b border-[#E4E3E0]/5 hover:bg-[#E4E3E0]/10 transition-colors opacity-60">
+                              <tr key={idx} className="border-b border-black/5 hover:bg-black/5 transition-colors opacity-60">
                                 <td className="py-2 px-4 truncate max-w-[200px]">{item.fileName}</td>
-                                <td className="py-2 px-4 font-bold text-center">{item.blm}°</td>
+                                <td className="py-2 px-4 font-semibold text-center">{item.blm}°</td>
                                 <td className="py-2 px-4 text-right">{item.freq.toFixed(4)}</td>
-                                <td className="py-2 px-4 text-right font-mono">{item.amp.toExponential(4)}</td>
+                                <td className="py-2 px-4 text-right tabular-nums">{item.amp.toExponential(4)}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -7510,15 +7531,15 @@ export default function App() {
             </div>
           ) : activeTab === 'harmonics' ? (
             <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="bg-[#141414] text-[#E4E3E0] p-8 border border-[#E4E3E0]/10">
+              <div className="bg-white text-[#1d1d1f] p-8 border border-black/10 rounded-2xl">
                 <div className="flex justify-between items-center mb-8">
                   <div className="flex items-center gap-3">
-                    <Layers size={24} className="text-[#F27D26]" />
-                    <h3 className="text-2xl font-serif italic font-bold">Single File Harmonic Analysis</h3>
+                    <Layers size={24} className="text-[#0071e3]" />
+                    <h3 className="text-2xl font-semibold">Single File Harmonic Analysis</h3>
                   </div>
-                  <div className="flex items-center gap-6 bg-white/5 px-6 py-3 border border-white/10">
+                  <div className="flex items-center gap-6 bg-black/5 px-6 py-3 border border-black/10">
                     <div className="flex flex-col gap-1">
-                      <label className="text-[9px] font-mono uppercase opacity-60">Select BLM File:</label>
+                      <label className="text-[11px] tabular-nums opacity-60">Select BLM File:</label>
                       <select 
                         value={selectedFileForHarmonics}
                         onChange={(e) => {
@@ -7530,7 +7551,7 @@ export default function App() {
                             if (strongest) setFundamentalFreq(strongest.frequency);
                           }
                         }}
-                        className="bg-[#141414] border border-[#E4E3E0]/30 p-1 font-mono text-[10px] text-[#E4E3E0] min-w-[200px]"
+                        className="bg-white border border-black/30 p-1 tabular-nums text-[12px] text-[#1d1d1f] min-w-[200px]"
                       >
                         <option value="">-- Select File --</option>
                         {assembleData.map(d => (
@@ -7540,23 +7561,23 @@ export default function App() {
                     </div>
                     
                     {fundamentalFreq !== null && (
-                      <div className="flex flex-col gap-1 border-l border-white/10 pl-4">
-                        <label className="text-[9px] font-mono uppercase opacity-60">Fundamental (F₁):</label>
+                      <div className="flex flex-col gap-1 border-l border-black/10 pl-4">
+                        <label className="text-[11px] tabular-nums opacity-60">Fundamental (F₁):</label>
                         <div className="flex items-center gap-2">
                           <input 
                             type="number" 
                             step="0.1"
                             value={fundamentalFreq} 
                             onChange={(e) => setFundamentalFreq(Number(e.target.value))}
-                            className="w-20 bg-[#141414] border border-[#E4E3E0]/30 p-1 font-mono text-[10px] text-[#E4E3E0]"
+                            className="w-20 bg-white border border-black/30 p-1 tabular-nums text-[12px] text-[#1d1d1f]"
                           />
-                          <span className="text-[9px] font-mono opacity-40">T</span>
+                          <span className="text-[11px] tabular-nums opacity-40">T</span>
                         </div>
                       </div>
                     )}
 
-                    <div className="flex flex-col gap-1 border-l border-white/10 pl-4">
-                      <label className="text-[9px] font-mono uppercase opacity-60">Match Tol:</label>
+                    <div className="flex flex-col gap-1 border-l border-black/10 pl-4">
+                      <label className="text-[11px] tabular-nums opacity-60">Match Tol:</label>
                       <div className="flex items-center gap-2">
                         <input 
                           type="number" 
@@ -7565,9 +7586,9 @@ export default function App() {
                           max="0.1"
                           value={harmonicTolerance} 
                           onChange={(e) => setHarmonicTolerance(Number(e.target.value))}
-                          className="w-16 bg-[#141414] border border-[#E4E3E0]/30 p-1 font-mono text-[10px] text-[#E4E3E0]"
+                          className="w-16 bg-white border border-black/30 p-1 tabular-nums text-[12px] text-[#1d1d1f]"
                         />
-                        <span className="text-[9px] font-mono opacity-40">rel</span>
+                        <span className="text-[11px] tabular-nums opacity-40">rel</span>
                       </div>
                     </div>
                   </div>
@@ -7577,10 +7598,10 @@ export default function App() {
                   const fileData = assembleData.find(d => d.fileName === selectedFileForHarmonics);
                   if (!fileData) {
                     return (
-                      <div className="h-[300px] border-2 border-dashed border-white/10 flex flex-col items-center justify-center text-white/20">
+                      <div className="h-[300px] border-2 border-dashed border-black/10 flex flex-col items-center justify-center text-[#1d1d1f]/20">
                         <FileText size={48} strokeWidth={1} />
-                        <p className="mt-4 font-serif italic text-xl">No File Selected</p>
-                        <p className="text-xs font-mono uppercase tracking-widest mt-2">Select a BLM file to analyze its harmonics</p>
+                        <p className="mt-4 text-xl">No File Selected</p>
+                        <p className="text-xs tabular-nums mt-2">Select a BLM file to analyze its harmonics</p>
                       </div>
                     );
                   }
@@ -7600,36 +7621,36 @@ export default function App() {
 
                   return (
                     <div className="space-y-8">
-                      <div className="bg-white/5 p-6 border border-white/10">
+                      <div className="bg-black/5 p-6 border border-black/10">
                         <div className="flex justify-between items-center mb-6">
                           <div>
-                            <h5 className="text-xl font-serif italic font-bold">{selectedFileForHarmonics}</h5>
-                            <p className="text-[10px] font-mono uppercase opacity-40 mt-1">
+                            <h5 className="text-xl font-semibold">{selectedFileForHarmonics}</h5>
+                            <p className="text-[12px] tabular-nums opacity-40 mt-1">
                               {blmMode === 'step' ? 'Step' : 'Angle'}: {fileData.x.toFixed(2)}{blmMode === 'step' ? '' : '°'} | Detected Peaks: {peaks.length}
                             </p>
                           </div>
                         </div>
 
-                        <div className="h-[500px] w-full bg-black/20 p-4 border border-white/5">
+                        <div className="h-[500px] w-full bg-[#f5f5f7] p-4 border border-black/5">
                           <ResponsiveContainer width="100%" height="100%">
                             <ComposedChart data={peaks} margin={{ bottom: 20, left: 20 }}>
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#333" />
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5ea" />
                               <XAxis 
                                 dataKey="frequency" 
                                 type="number"
                                 domain={[0, maxFreq]}
-                                tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                                label={{ value: 'Frequency (T)', position: 'insideBottom', offset: 10, fill: '#E4E3E0', fontSize: 9 }}
+                                tick={{ fontSize: 9, fontFamily: 'inherit', fill: '#6e6e73' }}
+                                label={{ value: 'Frequency (T)', position: 'insideBottom', offset: 10, fill: '#6e6e73', fontSize: 9 }}
                               />
                               <YAxis 
                                 dataKey="amplitude"
                                 type="number"
                                 domain={[0, maxAmp]}
-                                tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                                label={{ value: 'Amplitude', angle: -90, position: 'insideLeft', fill: '#E4E3E0', fontSize: 9 }}
+                                tick={{ fontSize: 9, fontFamily: 'inherit', fill: '#6e6e73' }}
+                                label={{ value: 'Amplitude', angle: -90, position: 'insideLeft', fill: '#6e6e73', fontSize: 9 }}
                               />
                               <Tooltip 
-                                contentStyle={{ backgroundColor: '#141414', border: '1px solid #E4E3E0', fontSize: '9px', color: '#E4E3E0' }}
+                                contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '9px', color: '#1d1d1f' }}
                                 cursor={{ strokeDasharray: '3 3' }}
                               />
                               
@@ -7637,7 +7658,7 @@ export default function App() {
                               <Scatter 
                                 name="All Peaks" 
                                 data={peaks} 
-                                fill="#E4E3E0" 
+                                fill="#1d1d1f" 
                                 opacity={0.3}
                               />
 
@@ -7646,14 +7667,14 @@ export default function App() {
                                 <ReferenceLine 
                                   key={hm.h}
                                   x={hm.target} 
-                                  stroke={hm.match ? "#F27D26" : "#333"} 
+                                  stroke={hm.match ? "#0071e3" : "#e5e5ea"} 
                                   strokeDasharray="5 5"
                                   label={{ 
                                     value: `${hm.h}F`, 
                                     position: 'top', 
-                                    fill: hm.match ? "#F27D26" : "#333", 
+                                    fill: hm.match ? "#0071e3" : "#e5e5ea", 
                                     fontSize: 10,
-                                    fontFamily: 'monospace'
+                                    fontFamily: 'inherit'
                                   }}
                                 />
                               ))}
@@ -7662,7 +7683,7 @@ export default function App() {
                               <Scatter 
                                 name="Harmonic Matches" 
                                 data={harmonicMatches.filter(hm => hm.match).map(hm => hm.match!)} 
-                                fill="#F27D26" 
+                                fill="#0071e3" 
                                 shape="star"
                                 size={100}
                               />
@@ -7674,45 +7695,45 @@ export default function App() {
                           {harmonicMatches.map(hm => (
                             <div 
                               key={hm.h} 
-                              className={`p-3 border transition-colors ${hm.match ? 'bg-[#F27D26]/10 border-[#F27D26]/30' : 'bg-white/5 border-white/10 opacity-40'}`}
+                              className={`p-3 border transition-colors ${hm.match ? 'bg-[#0071e3]/10 border-[#0071e3]/30' : 'bg-black/5 border-black/10 opacity-40'}`}
                               onClick={() => hm.match && setFundamentalFreq(hm.match.frequency / hm.h)}
                               style={{ cursor: hm.match ? 'pointer' : 'default' }}
                             >
-                              <span className="text-[10px] font-mono uppercase opacity-60 block">{hm.h}F Target</span>
-                              <span className="text-sm font-mono font-bold block">{hm.target.toFixed(2)}</span>
+                              <span className="text-[12px] tabular-nums opacity-60 block">{hm.h}F Target</span>
+                              <span className="text-sm tabular-nums font-semibold block">{hm.target.toFixed(2)}</span>
                               {hm.match && (
-                                <div className="mt-2 pt-2 border-t border-[#F27D26]/20">
-                                  <span className="text-[9px] font-mono uppercase opacity-60 block">Found</span>
-                                  <span className="text-[11px] font-mono font-bold text-[#F27D26]">{hm.match.frequency.toFixed(2)}</span>
-                                  <span className="text-[9px] font-mono opacity-40 block">Err: {((Math.abs(hm.match.frequency - hm.target) / hm.target) * 100).toFixed(2)}%</span>
+                                <div className="mt-2 pt-2 border-t border-[#0071e3]/20">
+                                  <span className="text-[11px] tabular-nums opacity-60 block">Found</span>
+                                  <span className="text-[11px] tabular-nums font-semibold text-[#0071e3]">{hm.match.frequency.toFixed(2)}</span>
+                                  <span className="text-[11px] tabular-nums opacity-40 block">Err: {((Math.abs(hm.match.frequency - hm.target) / hm.target) * 100).toFixed(2)}%</span>
                                 </div>
                               )}
                             </div>
                           ))}
                         </div>
 
-                        <div className="mt-8 border-t border-white/10 pt-6">
-                          <h6 className="text-[10px] font-mono uppercase tracking-widest opacity-60 mb-4">Peak List for {selectedFileForHarmonics}</h6>
-                          <div className="max-h-64 overflow-y-auto border border-white/5 bg-black/20">
+                        <div className="mt-8 border-t border-black/10 pt-6">
+                          <h6 className="text-[12px] tabular-nums opacity-60 mb-4">Peak List for {selectedFileForHarmonics}</h6>
+                          <div className="max-h-64 overflow-y-auto border border-black/5 bg-[#f5f5f7]">
                             <table className="w-full text-left border-collapse">
-                              <thead className="sticky top-0 bg-[#141414] border-b border-white/10">
+                              <thead className="sticky top-0 bg-white border-b border-black/10">
                                 <tr>
-                                  <th className="p-2 text-[9px] font-mono uppercase opacity-40">Frequency (T)</th>
-                                  <th className="p-2 text-[9px] font-mono uppercase opacity-40">Amplitude</th>
-                                  <th className="p-2 text-[9px] font-mono uppercase opacity-40">Classification</th>
-                                  <th className="p-2 text-[9px] font-mono uppercase opacity-40">Action</th>
+                                  <th className="p-2 text-[11px] tabular-nums opacity-40">Frequency (T)</th>
+                                  <th className="p-2 text-[11px] tabular-nums opacity-40">Amplitude</th>
+                                  <th className="p-2 text-[11px] tabular-nums opacity-40">Classification</th>
+                                  <th className="p-2 text-[11px] tabular-nums opacity-40">Action</th>
                                 </tr>
                               </thead>
                               <tbody>
                                 {_.orderBy(peaks, ['frequency']).map((p, pIdx) => {
                                   const hMatch = harmonicMatches.find(hm => hm.match === p);
                                   return (
-                                    <tr key={pIdx} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                                      <td className="p-2 text-[10px] font-mono">{p.frequency.toFixed(4)}</td>
-                                      <td className="p-2 text-[10px] font-mono">{p.amplitude.toExponential(2)}</td>
-                                      <td className="p-2 text-[10px] font-mono">
+                                    <tr key={pIdx} className="border-b border-black/5 hover:bg-black/5 transition-colors">
+                                      <td className="p-2 text-[12px] tabular-nums">{p.frequency.toFixed(4)}</td>
+                                      <td className="p-2 text-[12px] tabular-nums">{p.amplitude.toExponential(2)}</td>
+                                      <td className="p-2 text-[12px] tabular-nums">
                                         {hMatch ? (
-                                          <span className="px-2 py-0.5 bg-[#F27D26]/20 text-[#F27D26] rounded-full text-[9px] font-bold">
+                                          <span className="px-2 py-0.5 bg-[#0071e3]/20 text-[#0071e3] rounded-full text-[11px] font-semibold">
                                             {hMatch.h}F Harmonic
                                           </span>
                                         ) : (
@@ -7722,7 +7743,7 @@ export default function App() {
                                       <td className="p-2">
                                         <button 
                                           onClick={() => setFundamentalFreq(p.frequency)}
-                                          className="text-[9px] font-mono uppercase tracking-widest bg-white/5 hover:bg-white/10 px-2 py-1 border border-white/10 transition-colors"
+                                          className="text-[11px] tabular-nums bg-black/5 hover:bg-black/5 px-2 py-1 border border-black/10 transition-colors"
                                         >
                                           Set as F₁
                                         </button>
@@ -7746,61 +7767,61 @@ export default function App() {
                 const assembleSuggestedMax = assembleFreqMax > 0 ? Math.ceil(assembleFreqMax * 1.2 / 100) * 100 : 'auto';
 
                 return (
-                  <div className="bg-[#141414] text-[#E4E3E0] p-8 border border-[#E4E3E0]/10">
+                  <div className="bg-white text-[#1d1d1f] p-8 border border-black/10 rounded-2xl">
                     <div className="flex justify-between items-center mb-6">
                       <div className="flex items-center gap-3">
-                        <Activity size={24} className="text-[#F27D26]" />
-                        <h3 className="text-2xl font-serif italic font-bold">FFT Assemble</h3>
+                        <Activity size={24} className="text-[#0071e3]" />
+                        <h3 className="text-2xl font-semibold">FFT Assemble</h3>
                       </div>
                       <div className="flex items-center gap-6">
-                        <div className="flex items-center gap-4 bg-white/5 px-4 py-2 border border-white/10">
+                        <div className="flex items-center gap-4 bg-black/5 px-4 py-2 border border-black/10">
                           <div className="flex items-center gap-2">
-                            <label className="text-[9px] font-mono uppercase opacity-60">Export Range:</label>
+                            <label className="text-[11px] tabular-nums opacity-60">Export Range:</label>
                             <input 
                               type="number" 
                               value={exportMinFreq} 
                               onChange={(e) => setExportMinFreq(Number(e.target.value))}
-                              className="w-16 bg-[#141414] border border-[#E4E3E0]/30 p-1 font-mono text-[10px] text-[#E4E3E0]"
+                              className="w-16 bg-white border border-black/30 p-1 tabular-nums text-[12px] text-[#1d1d1f]"
                               placeholder="Min"
                             />
-                            <span className="text-[#E4E3E0]/40">-</span>
+                            <span className="text-[#1d1d1f]/40">-</span>
                             <input 
                               type="number" 
                               value={exportMaxFreq} 
                               onChange={(e) => setExportMaxFreq(Number(e.target.value))}
-                              className="w-16 bg-[#141414] border border-[#E4E3E0]/30 p-1 font-mono text-[10px] text-[#E4E3E0]"
+                              className="w-16 bg-white border border-black/30 p-1 tabular-nums text-[12px] text-[#1d1d1f]"
                               placeholder="Max"
                             />
                           </div>
                         </div>
-                        <div className="flex items-center gap-4 bg-white/5 px-4 py-2 border border-white/10">
+                        <div className="flex items-center gap-4 bg-black/5 px-4 py-2 border border-black/10">
                           <div className="flex items-center gap-2">
-                            <label className="text-[9px] font-mono uppercase opacity-60">Auto Range</label>
+                            <label className="text-[11px] tabular-nums opacity-60">Auto Range</label>
                             <input 
                               type="checkbox" 
                               checked={autoFFTRange} 
                               onChange={(e) => setAutoFFTRange(e.target.checked)}
-                              className="accent-[#F27D26]"
+                              className="accent-[#0071e3]"
                             />
                           </div>
                           {!autoFFTRange && (
                             <div className="flex items-center gap-2">
-                              <label className="text-[9px] font-mono uppercase opacity-60">Max Freq:</label>
+                              <label className="text-[11px] tabular-nums opacity-60">Max Freq:</label>
                               <input 
                                 type="number" 
                                 value={manualMaxFreq} 
                                 onChange={(e) => setManualMaxFreq(Number(e.target.value))}
-                                className="w-20 bg-[#141414] border border-[#E4E3E0]/30 p-1 font-mono text-[10px] text-[#E4E3E0]"
+                                className="w-20 bg-white border border-black/30 p-1 tabular-nums text-[12px] text-[#1d1d1f]"
                               />
                             </div>
                           )}
-                          <div className="flex items-center gap-2 border-l border-white/10 pl-4 ml-2">
-                            <label className="text-[9px] font-mono uppercase opacity-60">Show Peaks</label>
+                          <div className="flex items-center gap-2 border-l border-black/10 pl-4 ml-2">
+                            <label className="text-[11px] tabular-nums opacity-60">Show Peaks</label>
                             <input 
                               type="checkbox" 
                               checked={showPeaksInAssemble} 
                               onChange={(e) => setShowPeaksInAssemble(e.target.checked)}
-                              className="accent-[#F27D26]"
+                              className="accent-[#0071e3]"
                             />
                           </div>
                         </div>
@@ -7844,46 +7865,46 @@ export default function App() {
                             const csv = headers + "\n" + rows.join("\n");
                             saveText(csv, `fft_assemble_simplified.csv`, 'text/csv');
                           }}
-                          className="bg-[#F27D26] text-white px-4 py-2 font-mono text-[10px] uppercase tracking-widest hover:bg-opacity-80"
+                          className="bg-[#0071e3] text-white px-4 py-2 tabular-nums text-[12px] hover:bg-opacity-80"
                         >
                           Export FFT Assemble
                         </button>
                         <div className="text-right">
-                          <span className="text-[10px] font-mono uppercase opacity-40 block">Waterfall View</span>
-                          <span className="text-[10px] font-mono uppercase opacity-40 block">{assembleData.length} Files Assembled</span>
+                          <span className="text-[12px] tabular-nums opacity-40 block">Waterfall View</span>
+                          <span className="text-[12px] tabular-nums opacity-40 block">{assembleData.length} Files Assembled</span>
                         </div>
                       </div>
                     </div>
 
                     {assembleData.length === 0 && !isProcessing && (
-                      <div className="h-[400px] border-2 border-dashed border-[#E4E3E0]/20 flex flex-col items-center justify-center text-[#E4E3E0]/40">
+                      <div className="h-[400px] border-2 border-dashed border-black/20 flex flex-col items-center justify-center text-[#1d1d1f]/40">
                         <Activity size={48} strokeWidth={1} />
-                        <p className="mt-4 font-serif italic text-xl">No Data to Assemble</p>
-                        <p className="text-xs font-mono uppercase tracking-widest mt-2">Click "Process All Files" to generate assembly</p>
+                        <p className="mt-4 text-xl">No Data to Assemble</p>
+                        <p className="text-xs tabular-nums mt-2">Click "Process All Files" to generate assembly</p>
                       </div>
                     )}
 
                     {assembleData.length > 0 && (
                       <div className="space-y-12">
-                         <div className="h-[600px] w-full bg-[#141414]/50 p-6 border border-[#E4E3E0]/5">
-                            <h4 className="text-xs font-mono uppercase opacity-60 mb-6 text-center">FFT Evolution vs {blmMode === 'step' ? 'Steps' : 'BLM'}</h4>
+                         <div className="h-[600px] w-full bg-black/50 p-6 border border-black/5">
+                            <h4 className="text-xs tabular-nums opacity-60 mb-6 text-center">FFT Evolution vs {blmMode === 'step' ? 'Steps' : 'BLM'}</h4>
                             <ResponsiveContainer width="100%" height="90%">
                               <LineChart margin={{ bottom: 20 }}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#333" />
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5ea" />
                                 <XAxis 
                                   dataKey="frequency" 
                                   type="number"
                                   domain={[0, autoFFTRange ? assembleSuggestedMax : manualMaxFreq]}
                                   allowDataOverflow={true}
-                                  tick={{ fontSize: 10, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                                  label={{ value: 'Frequency (T)', position: 'insideBottom', offset: 10, fill: '#E4E3E0', fontSize: 10 }}
+                                  tick={{ fontSize: 10, fontFamily: 'inherit', fill: '#6e6e73' }}
+                                  label={{ value: 'Frequency (T)', position: 'insideBottom', offset: 10, fill: '#6e6e73', fontSize: 10 }}
                                 />
                                 <YAxis 
-                                  tick={{ fontSize: 10, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                                  label={{ value: 'Amplitude', angle: -90, position: 'insideLeft', fill: '#E4E3E0', fontSize: 10 }}
+                                  tick={{ fontSize: 10, fontFamily: 'inherit', fill: '#6e6e73' }}
+                                  label={{ value: 'Amplitude', angle: -90, position: 'insideLeft', fill: '#6e6e73', fontSize: 10 }}
                                 />
                                 <Tooltip 
-                                  contentStyle={{ backgroundColor: '#141414', border: '1px solid #E4E3E0', fontSize: '10px', color: '#E4E3E0' }}
+                                  contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '10px', color: '#1d1d1f' }}
                                 />
                                 <Legend verticalAlign="top" height={36}/>
                                 {assembleChartData.map((item, idx) => (
@@ -7904,7 +7925,7 @@ export default function App() {
                                   <Scatter
                                     key={`peaks-${item.fileName}`}
                                     data={(item.peaks || []).map(p => ({ frequency: p.frequency, amplitude: p.amplitude }))}
-                                    fill="#FFFFFF"
+                                    fill="#1d1d1f"
                                     stroke={`hsl(${(idx * 360) / assembleData.length}, 70%, 60%)`}
                                     strokeWidth={1}
                                     name={`Peaks ${item.fileName}`}
@@ -7916,7 +7937,7 @@ export default function App() {
                                       position="top" 
                                       offset={10} 
                                       formatter={(val: number) => val.toFixed(1)} 
-                                      style={{ fontSize: '8px', fontFamily: 'monospace', fill: '#FFFFFF', opacity: 0.8 }}
+                                      style={{ fontSize: '8px', fontFamily: 'inherit', fill: '#1d1d1f', opacity: 0.8 }}
                                     />
                                   </Scatter>
                                 ))}
@@ -7926,10 +7947,10 @@ export default function App() {
 
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {assembleChartData.map((item) => (
-                              <div key={item.fileName} className="bg-white/5 p-4 border border-[#E4E3E0]/10">
+                              <div key={item.fileName} className="bg-black/5 p-4 border border-black/10">
                                 <div className="flex justify-between items-center mb-2">
-                                  <span className="text-[10px] font-mono truncate max-w-[150px] opacity-60">{item.fileName}</span>
-                                  <span className="text-[10px] font-mono font-bold text-[#F27D26]">{blmMode === 'step' ? 'Step' : 'BLM'}: {item.x}</span>
+                                  <span className="text-[12px] tabular-nums truncate max-w-[150px] opacity-60">{item.fileName}</span>
+                                  <span className="text-[12px] tabular-nums font-semibold text-[#0071e3]">{blmMode === 'step' ? 'Step' : 'BLM'}: {item.x}</span>
                                 </div>
                                 <div className="h-[100px] w-full">
                                   <MiniFFT
@@ -7950,39 +7971,39 @@ export default function App() {
             </div>
           ) : activeTab === 'lkfit' ? (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="bg-[#141414] text-[#E4E3E0] p-8 border border-[#E4E3E0]/10">
+              <div className="bg-white text-[#1d1d1f] p-8 border border-black/10 rounded-2xl">
                 <div className="flex justify-between items-center mb-8 flex-wrap gap-4">
                   <div className="flex items-center gap-3">
-                    <Activity size={24} className="text-[#F27D26]" />
+                    <Activity size={24} className="text-[#0071e3]" />
                     <div>
-                      <h3 className="text-2xl font-serif italic font-bold">Lifshitz-Kosevich Mass Fit</h3>
+                      <h3 className="text-2xl font-semibold">Lifshitz-Kosevich Mass Fit</h3>
                       {activeBucket === 'temperature' && (
-                        <p className="text-[10px] font-mono opacity-40 mt-0.5">
+                        <p className="text-[12px] tabular-nums opacity-40 mt-0.5">
                           T-Sweep Set: {orientations.find(o => o.id === activeOrientationId)?.temperature.groups.find(g => g.id === activeTempGroupId)?.label ?? '—'}
                         </p>
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-6 bg-white/5 px-6 py-3 border border-white/10 flex-wrap">
+                  <div className="flex items-center gap-6 bg-black/5 px-6 py-3 border border-black/10 flex-wrap">
                     <div className="flex flex-col gap-1">
-                      <label className="text-[9px] font-mono uppercase opacity-60">Column:</label>
+                      <label className="text-[11px] tabular-nums opacity-60">Column:</label>
                       <select
                         value={lkColumn}
                         onChange={(e) => setLkColumn(e.target.value)}
-                        className="bg-[#141414] border border-[#E4E3E0]/30 p-1 font-mono text-[10px] text-[#E4E3E0] min-w-[140px]"
+                        className="bg-white border border-black/30 p-1 tabular-nums text-[12px] text-[#1d1d1f] min-w-[140px]"
                       >
                         <option value="">-- First available --</option>
                         {lkColumnOptions.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
-                    <div className="flex flex-col gap-1 border-l border-white/10 pl-4">
-                      <label className="text-[9px] font-mono uppercase opacity-60">Frequency (T):</label>
+                    <div className="flex flex-col gap-1 border-l border-black/10 pl-4">
+                      <label className="text-[11px] tabular-nums opacity-60">Frequency (T):</label>
                       <input
                         type="number"
                         step="0.1"
                         value={lkFreq ?? ''}
                         onChange={(e) => setLkFreq(e.target.value === '' ? null : Number(e.target.value))}
-                        className="w-24 bg-[#141414] border border-[#E4E3E0]/30 p-1 font-mono text-[10px] text-[#E4E3E0]"
+                        className="w-24 bg-white border border-black/30 p-1 tabular-nums text-[12px] text-[#1d1d1f]"
                         placeholder="Manual"
                       />
                     </div>
@@ -7990,7 +8011,7 @@ export default function App() {
                       onClick={exportLKFitCSV}
                       disabled={!lkFitResult || lkFitResult.points.length < 3}
                       title="온도별 진폭/피팅값 + m*, A0, R²를 CSV로 저장"
-                      className="px-2.5 py-1.5 font-mono text-[9px] uppercase border border-[#F27D26]/40 text-[#F27D26] hover:bg-[#F27D26]/10 disabled:opacity-30 disabled:cursor-not-allowed self-end flex items-center gap-1"
+                      className="px-2.5 py-1.5 tabular-nums text-[11px] border border-[#0071e3]/40 text-[#0071e3] hover:bg-[#0071e3]/10 disabled:opacity-30 disabled:cursor-not-allowed self-end flex items-center gap-1"
                     >
                       <Download size={11} />Export CSV
                     </button>
@@ -7999,15 +8020,15 @@ export default function App() {
 
                 {lkFreqClusters.length > 0 && (
                   <div className="flex items-center gap-2 flex-wrap mb-8">
-                    <span className="text-[9px] font-mono uppercase opacity-40 mr-2">Frequently detected:</span>
+                    <span className="text-[11px] tabular-nums opacity-40 mr-2">Frequently detected:</span>
                     {lkFreqClusters.map(fc => (
                       <button
                         key={fc.freq}
                         onClick={() => setLkFreq(fc.freq)}
-                        className={`px-2.5 py-1 font-mono text-[10px] border transition-colors ${
+                        className={`px-3 py-1 text-[13px] rounded-full border transition-colors ${
                           lkFreq != null && Math.abs(lkFreq - fc.freq) / fc.freq < 0.02
-                            ? 'bg-[#F27D26]/20 border-[#F27D26] text-[#F27D26]'
-                            : 'bg-white/5 border-white/10 hover:bg-white/10'
+                            ? 'bg-[#0071e3]/20 border-[#0071e3] text-[#0071e3]'
+                            : 'bg-black/5 border-black/10 hover:bg-black/5'
                         }`}
                       >
                         {fc.freq.toFixed(1)} T <span className="opacity-40">×{fc.count}</span>
@@ -8017,16 +8038,16 @@ export default function App() {
                 )}
 
                 {lkFreq == null ? (
-                  <div className="h-[300px] border-2 border-dashed border-white/10 flex flex-col items-center justify-center text-white/20">
+                  <div className="h-[300px] border-2 border-dashed border-black/10 flex flex-col items-center justify-center text-[#1d1d1f]/20">
                     <Activity size={48} strokeWidth={1} />
-                    <p className="mt-4 font-serif italic text-xl">No Frequency Selected</p>
-                    <p className="text-xs font-mono uppercase tracking-widest mt-2">Pick a detected frequency above, or type one in manually</p>
+                    <p className="mt-4 text-xl">No Frequency Selected</p>
+                    <p className="text-xs tabular-nums mt-2">Pick a detected frequency above, or type one in manually</p>
                   </div>
                 ) : !lkFitResult || lkFitResult.points.length < 3 ? (
-                  <div className="h-[300px] border-2 border-dashed border-white/10 flex flex-col items-center justify-center text-white/20 text-center px-8">
+                  <div className="h-[300px] border-2 border-dashed border-black/10 flex flex-col items-center justify-center text-[#1d1d1f]/20 text-center px-8">
                     <AlertCircle size={48} strokeWidth={1} />
-                    <p className="mt-4 font-serif italic text-xl">Not Enough Points</p>
-                    <p className="text-xs font-mono uppercase tracking-widest mt-2">
+                    <p className="mt-4 text-xl">Not Enough Points</p>
+                    <p className="text-xs tabular-nums mt-2">
                       Need at least 3 files with a resolvable temperature and processed results ({lkFitResult?.points.length ?? 0} found)
                     </p>
                   </div>
@@ -8038,66 +8059,66 @@ export default function App() {
                   return (
                     <div className="space-y-8">
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="bg-white/5 p-4 border border-white/10">
-                          <span className="text-[9px] font-mono uppercase opacity-60 block">Effective Mass m*</span>
-                          <span className="text-xl font-mono font-bold text-[#F27D26]">{mStar != null ? `${mStar.toFixed(3)} m₀` : '—'}</span>
+                        <div className="bg-black/5 p-4 border border-black/10">
+                          <span className="text-[11px] tabular-nums opacity-60 block">Effective Mass m*</span>
+                          <span className="text-xl tabular-nums font-semibold text-[#0071e3]">{mStar != null ? `${mStar.toFixed(3)} m₀` : '—'}</span>
                         </div>
-                        <div className="bg-white/5 p-4 border border-white/10">
-                          <span className="text-[9px] font-mono uppercase opacity-60 block">R²</span>
-                          <span className="text-xl font-mono font-bold">{r2 != null ? r2.toFixed(4) : '—'}</span>
+                        <div className="bg-black/5 p-4 border border-black/10">
+                          <span className="text-[11px] tabular-nums opacity-60 block">R²</span>
+                          <span className="text-xl tabular-nums font-semibold">{r2 != null ? r2.toFixed(4) : '—'}</span>
                         </div>
-                        <div className="bg-white/5 p-4 border border-white/10">
-                          <span className="text-[9px] font-mono uppercase opacity-60 block">A0</span>
-                          <span className="text-xl font-mono font-bold">{A0 != null ? A0.toExponential(3) : '—'}</span>
+                        <div className="bg-black/5 p-4 border border-black/10">
+                          <span className="text-[11px] tabular-nums opacity-60 block">A0</span>
+                          <span className="text-xl tabular-nums font-semibold">{A0 != null ? A0.toExponential(3) : '—'}</span>
                         </div>
-                        <div className="bg-white/5 p-4 border border-white/10">
-                          <span className="text-[9px] font-mono uppercase opacity-60 block">Points / Avg B_eff</span>
-                          <span className="text-xl font-mono font-bold">{points.length} <span className="text-xs opacity-50">/ {avgBeff.toFixed(2)} T</span></span>
+                        <div className="bg-black/5 p-4 border border-black/10">
+                          <span className="text-[11px] tabular-nums opacity-60 block">Points / Avg B_eff</span>
+                          <span className="text-xl tabular-nums font-semibold">{points.length} <span className="text-xs opacity-50">/ {avgBeff.toFixed(2)} T</span></span>
                         </div>
                       </div>
 
-                      <div className="h-[400px] w-full bg-black/20 p-4 border border-white/5">
+                      <div className="h-[400px] w-full bg-[#f5f5f7] p-4 border border-black/5">
                         <ResponsiveContainer width="100%" height="100%">
                           <ComposedChart margin={{ bottom: 20, left: 20 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#333" />
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5ea" />
                             <XAxis
                               dataKey="temp"
                               type="number"
                               domain={['auto', 'auto']}
-                              tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                              label={{ value: 'Temperature (K)', position: 'insideBottom', offset: 10, fill: '#E4E3E0', fontSize: 9 }}
+                              tick={{ fontSize: 9, fontFamily: 'inherit', fill: '#6e6e73' }}
+                              label={{ value: 'Temperature (K)', position: 'insideBottom', offset: 10, fill: '#6e6e73', fontSize: 9 }}
                             />
                             <YAxis
                               dataKey="amp"
                               type="number"
                               domain={['auto', 'auto']}
-                              tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                              label={{ value: 'Amplitude', angle: -90, position: 'insideLeft', fill: '#E4E3E0', fontSize: 9 }}
+                              tick={{ fontSize: 9, fontFamily: 'inherit', fill: '#6e6e73' }}
+                              label={{ value: 'Amplitude', angle: -90, position: 'insideLeft', fill: '#6e6e73', fontSize: 9 }}
                             />
-                            <Tooltip contentStyle={{ backgroundColor: '#141414', border: '1px solid #E4E3E0', fontSize: '9px', color: '#E4E3E0' }} />
-                            <Legend wrapperStyle={{ fontSize: 9, fontFamily: 'monospace' }} />
+                            <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '9px', color: '#1d1d1f' }} />
+                            <Legend wrapperStyle={{ fontSize: 9, fontFamily: 'inherit' }} />
                             {curvePoints.length > 0 && (
-                              <Line data={curvePoints} dataKey="ampFit" type="monotone" dot={false} stroke="#F27D26" strokeWidth={2} name="LK Fit" isAnimationActive={false} />
+                              <Line data={curvePoints} dataKey="ampFit" type="monotone" dot={false} stroke="#0071e3" strokeWidth={2} name="LK Fit" isAnimationActive={false} />
                             )}
-                            <Scatter data={points} dataKey="amp" fill="#E4E3E0" name="Data" />
+                            <Scatter data={points} dataKey="amp" fill="#1d1d1f" name="Data" />
                           </ComposedChart>
                         </ResponsiveContainer>
                       </div>
 
-                      <div className="border-t border-white/10 pt-6">
+                      <div className="border-t border-black/10 pt-6">
                         <div className="flex justify-between items-center mb-4">
-                          <h6 className="text-[10px] font-mono uppercase tracking-widest opacity-60">Temperature Series ({lkFreq.toFixed(1)} T{lkColumn ? `, ${lkColumn}` : ''})</h6>
-                          <button onClick={exportLKFitCSV} className="px-2.5 py-1 font-mono text-[8px] uppercase border border-[#E4E3E0]/15 hover:bg-white/5 flex items-center gap-1"><Download size={9} />CSV</button>
+                          <h6 className="text-[12px] tabular-nums opacity-60">Temperature Series ({lkFreq.toFixed(1)} T{lkColumn ? `, ${lkColumn}` : ''})</h6>
+                          <button onClick={exportLKFitCSV} className="px-2.5 py-1 tabular-nums text-[12px] border border-black/15 hover:bg-black/5 flex items-center gap-1"><Download size={9} />CSV</button>
                         </div>
-                        <div className="max-h-64 overflow-y-auto border border-white/5 bg-black/20">
+                        <div className="max-h-64 overflow-y-auto border border-black/5 bg-[#f5f5f7]">
                           <table className="w-full text-left border-collapse">
-                            <thead className="sticky top-0 bg-[#141414] border-b border-white/10">
+                            <thead className="sticky top-0 bg-white border-b border-black/10">
                               <tr>
-                                <th className="p-2 text-[9px] font-mono uppercase opacity-40">File</th>
-                                <th className="p-2 text-[9px] font-mono uppercase opacity-40">T (K)</th>
-                                <th className="p-2 text-[9px] font-mono uppercase opacity-40">B_eff (T)</th>
-                                <th className="p-2 text-[9px] font-mono uppercase opacity-40">Amplitude</th>
-                                <th className="p-2 text-[9px] font-mono uppercase opacity-40">Predicted</th>
+                                <th className="p-2 text-[11px] tabular-nums opacity-40">File</th>
+                                <th className="p-2 text-[11px] tabular-nums opacity-40">T (K)</th>
+                                <th className="p-2 text-[11px] tabular-nums opacity-40">B_eff (T)</th>
+                                <th className="p-2 text-[11px] tabular-nums opacity-40">Amplitude</th>
+                                <th className="p-2 text-[11px] tabular-nums opacity-40">Predicted</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -8105,12 +8126,12 @@ export default function App() {
                                 const X = mStar != null ? 14.69 * mStar * p.temp / p.bEff : NaN;
                                 const pred = mStar != null && A0 != null ? A0 * lkDampingFactor(X) : NaN;
                                 return (
-                                  <tr key={pIdx} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                                    <td className="p-2 text-[10px] font-mono">{p.fileName}</td>
-                                    <td className="p-2 text-[10px] font-mono">{p.temp.toFixed(2)}</td>
-                                    <td className="p-2 text-[10px] font-mono">{p.bEff.toFixed(2)}</td>
-                                    <td className="p-2 text-[10px] font-mono">{p.amp.toExponential(3)}</td>
-                                    <td className="p-2 text-[10px] font-mono">{isFinite(pred) ? pred.toExponential(3) : '—'}</td>
+                                  <tr key={pIdx} className="border-b border-black/5 hover:bg-black/5 transition-colors">
+                                    <td className="p-2 text-[12px] tabular-nums">{p.fileName}</td>
+                                    <td className="p-2 text-[12px] tabular-nums">{p.temp.toFixed(2)}</td>
+                                    <td className="p-2 text-[12px] tabular-nums">{p.bEff.toFixed(2)}</td>
+                                    <td className="p-2 text-[12px] tabular-nums">{p.amp.toExponential(3)}</td>
+                                    <td className="p-2 text-[12px] tabular-nums">{isFinite(pred) ? pred.toExponential(3) : '—'}</td>
                                   </tr>
                                 );
                               })}
@@ -8125,42 +8146,42 @@ export default function App() {
             </div>
           ) : activeTab === 'fftrange' ? (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="bg-[#141414] text-[#E4E3E0] p-8 border border-[#E4E3E0]/10">
+              <div className="bg-white text-[#1d1d1f] p-8 border border-black/10 rounded-2xl">
                 <div className="flex justify-between items-center mb-8 flex-wrap gap-4">
                   <div className="flex items-center gap-3">
-                    <Activity size={24} className="text-[#F27D26]" />
-                    <h3 className="text-2xl font-serif italic font-bold">FFT Range vs Detected Peak</h3>
+                    <Activity size={24} className="text-[#0071e3]" />
+                    <h3 className="text-2xl font-semibold">FFT Range vs Detected Peak</h3>
                   </div>
-                  <div className="flex items-center gap-6 bg-white/5 px-6 py-3 border border-white/10 flex-wrap">
+                  <div className="flex items-center gap-6 bg-black/5 px-6 py-3 border border-black/10 flex-wrap">
                     <div className="flex flex-col gap-1">
-                      <label className="text-[9px] font-mono uppercase opacity-60">Candidate Min B (T):</label>
+                      <label className="text-[11px] tabular-nums opacity-60">Candidate Min B (T):</label>
                       <input type="number" step="0.1" value={rangeScanMinBDraft}
                         onChange={(e) => handleRangeScanMinBChange(Number(e.target.value))}
-                        className="w-24 bg-[#141414] border border-[#E4E3E0]/30 p-1 font-mono text-[10px] text-[#E4E3E0]" />
+                        className="w-24 bg-white border border-black/30 p-1 tabular-nums text-[12px] text-[#1d1d1f]" />
                     </div>
                     <div className="flex flex-col gap-1">
-                      <label className="text-[9px] font-mono uppercase opacity-60">Candidate Max B (T):</label>
+                      <label className="text-[11px] tabular-nums opacity-60">Candidate Max B (T):</label>
                       <input type="number" step="0.1" value={rangeScanMaxBDraft}
                         onChange={(e) => handleRangeScanMaxBChange(Number(e.target.value))}
-                        className="w-24 bg-[#141414] border border-[#E4E3E0]/30 p-1 font-mono text-[10px] text-[#E4E3E0]" />
+                        className="w-24 bg-white border border-black/30 p-1 tabular-nums text-[12px] text-[#1d1d1f]" />
                     </div>
                     <button
                       onClick={() => { setTempMinB(rangeScanMinBDraft); setTempMaxB(rangeScanMaxBDraft); setMinB(rangeScanMinBDraft); setMaxB(rangeScanMaxBDraft); }}
-                      className="px-2.5 py-1.5 font-mono text-[9px] uppercase border border-[#F27D26] text-[#F27D26] hover:bg-[#F27D26]/10 self-end"
+                      className="px-2.5 py-1.5 tabular-nums text-[11px] border border-[#0071e3] text-[#0071e3] hover:bg-[#0071e3]/10 self-end"
                     >
                       Use This Range
                     </button>
                   </div>
                 </div>
-                <p className="text-[10px] font-mono opacity-40 mb-6 leading-relaxed">
+                <p className="text-[12px] tabular-nums opacity-40 mb-6 leading-relaxed">
                   현재 적용된 범위 [{isFinite(committedMinB) ? committedMinB.toFixed(2) : '−∞'}, {isFinite(committedMaxB) ? committedMaxB.toFixed(2) : '∞'}] T (파란색) 대비, 위에서 바꾼 후보 범위 (주황색) 로 각 파일의 detected peak이 어떻게 움직이는지 각도별로 비교합니다. 값을 바꾸면 타이핑을 멈춘 직후 자동 갱신되고, "Process All"은 누를 필요 없습니다.
                 </p>
 
                 {rangeScanBatch.length === 0 ? (
-                  <div className="h-[300px] border-2 border-dashed border-white/10 flex flex-col items-center justify-center text-white/20 text-center px-8">
+                  <div className="h-[300px] border-2 border-dashed border-black/10 flex flex-col items-center justify-center text-[#1d1d1f]/20 text-center px-8">
                     <FileText size={48} strokeWidth={1} />
-                    <p className="mt-4 font-serif italic text-xl">No Data</p>
-                    <p className="text-xs font-mono uppercase tracking-widest mt-2">
+                    <p className="mt-4 text-xl">No Data</p>
+                    <p className="text-xs tabular-nums mt-2">
                       {files.length === 0
                         ? 'Upload files first'
                         : filesByAngle.every(({ file }) => fftSkip.has(file.id))
@@ -8172,62 +8193,62 @@ export default function App() {
                   <div className="space-y-6">
                     {rangeScanStability && (
                       <div className="grid grid-cols-3 gap-4">
-                        <div className="bg-white/5 p-4 border border-white/10">
-                          <span className="text-[9px] font-mono uppercase opacity-60 block">Files Compared</span>
-                          <span className="text-xl font-mono font-bold">{rangeScanStability.n}</span>
+                        <div className="bg-black/5 p-4 border border-black/10">
+                          <span className="text-[11px] tabular-nums opacity-60 block">Files Compared</span>
+                          <span className="text-xl tabular-nums font-semibold">{rangeScanStability.n}</span>
                         </div>
-                        <div className="bg-white/5 p-4 border border-white/10">
-                          <span className="text-[9px] font-mono uppercase opacity-60 block">Mean |ΔPeak|</span>
-                          <span className="text-xl font-mono font-bold">{rangeScanStability.meanDelta.toFixed(2)} T</span>
+                        <div className="bg-black/5 p-4 border border-black/10">
+                          <span className="text-[11px] tabular-nums opacity-60 block">Mean |ΔPeak|</span>
+                          <span className="text-xl tabular-nums font-semibold">{rangeScanStability.meanDelta.toFixed(2)} T</span>
                         </div>
-                        <div className="bg-white/5 p-4 border border-white/10">
-                          <span className="text-[9px] font-mono uppercase opacity-60 block">Max |ΔPeak|</span>
-                          <span className={`text-xl font-mono font-bold ${rangeScanStability.maxDelta > 20 ? 'text-red-400' : 'text-[#4ADE80]'}`}>{rangeScanStability.maxDelta.toFixed(2)} T</span>
+                        <div className="bg-black/5 p-4 border border-black/10">
+                          <span className="text-[11px] tabular-nums opacity-60 block">Max |ΔPeak|</span>
+                          <span className={`text-xl tabular-nums font-semibold ${rangeScanStability.maxDelta > 20 ? 'text-red-600' : 'text-[#28a745]'}`}>{rangeScanStability.maxDelta.toFixed(2)} T</span>
                         </div>
                       </div>
                     )}
 
-                    <div className="h-[420px] w-full bg-black/20 p-4 border border-white/5">
+                    <div className="h-[420px] w-full bg-[#f5f5f7] p-4 border border-black/5">
                       <ResponsiveContainer width="100%" height="100%">
                         <ComposedChart margin={{ bottom: 20, left: 10, right: 10 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#333" />
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5ea" />
                           <XAxis dataKey="blm" type="number" domain={['auto', 'auto']}
-                            tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                            label={{ value: 'BLM / angle (°)', position: 'insideBottom', offset: 10, fill: '#E4E3E0', fontSize: 9 }} />
+                            tick={{ fontSize: 9, fontFamily: 'inherit', fill: '#6e6e73' }}
+                            label={{ value: 'BLM / angle (°)', position: 'insideBottom', offset: 10, fill: '#6e6e73', fontSize: 9 }} />
                           <YAxis type="number" domain={['auto', 'auto']}
-                            tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                            label={{ value: 'Peak F (T)', angle: -90, position: 'insideLeft', fill: '#E4E3E0', fontSize: 9 }} width={55} />
-                          <Tooltip contentStyle={{ backgroundColor: '#141414', border: '1px solid #333', fontSize: '9px', color: '#E4E3E0' }}
+                            tick={{ fontSize: 9, fontFamily: 'inherit', fill: '#6e6e73' }}
+                            label={{ value: 'Peak F (T)', angle: -90, position: 'insideLeft', fill: '#6e6e73', fontSize: 9 }} width={55} />
+                          <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '9px', color: '#1d1d1f' }}
                             formatter={(v: any, name: string) => [typeof v === 'number' ? v.toFixed(2) : v, name]}
                             labelFormatter={(v: number) => `angle = ${Number(v).toFixed(2)}°`} />
-                          <Legend wrapperStyle={{ fontSize: 9, fontFamily: 'monospace' }} />
-                          <Scatter data={rangeScanCurrentPeaks} dataKey="frequency" fill="#60A5FA" name="Current Range" isAnimationActive={false} />
-                          <Scatter data={rangeScanCandidatePeaks} dataKey="frequency" fill="#F27D26" name="Candidate Range" isAnimationActive={false} />
+                          <Legend wrapperStyle={{ fontSize: 9, fontFamily: 'inherit' }} />
+                          <Scatter data={rangeScanCurrentPeaks} dataKey="frequency" fill="#ff9500" name="Current Range" isAnimationActive={false} />
+                          <Scatter data={rangeScanCandidatePeaks} dataKey="frequency" fill="#0071e3" name="Candidate Range" isAnimationActive={false} />
                         </ComposedChart>
                       </ResponsiveContainer>
                     </div>
 
-                    <div className="border border-white/5 bg-black/20 max-h-64 overflow-y-auto">
+                    <div className="border border-black/5 bg-[#f5f5f7] max-h-64 overflow-y-auto">
                       <table className="w-full text-left border-collapse">
-                        <thead className="sticky top-0 bg-[#141414] border-b border-white/10">
+                        <thead className="sticky top-0 bg-white border-b border-black/10">
                           <tr>
-                            <th className="p-2 text-[9px] font-mono uppercase opacity-40">Angle</th>
-                            <th className="p-2 text-[9px] font-mono uppercase opacity-40">File</th>
-                            <th className="p-2 text-[9px] font-mono uppercase opacity-40">Current Peak (T)</th>
-                            <th className="p-2 text-[9px] font-mono uppercase opacity-40">Candidate Peak (T)</th>
-                            <th className="p-2 text-[9px] font-mono uppercase opacity-40">ΔPeak (T)</th>
+                            <th className="p-2 text-[11px] tabular-nums opacity-40">Angle</th>
+                            <th className="p-2 text-[11px] tabular-nums opacity-40">File</th>
+                            <th className="p-2 text-[11px] tabular-nums opacity-40">Current Peak (T)</th>
+                            <th className="p-2 text-[11px] tabular-nums opacity-40">Candidate Peak (T)</th>
+                            <th className="p-2 text-[11px] tabular-nums opacity-40">ΔPeak (T)</th>
                           </tr>
                         </thead>
                         <tbody>
                           {rangeScanBatch.map((d, i) => {
                             const delta = d.committedPeak !== null && d.candidatePeak !== null ? Math.abs(d.candidatePeak - d.committedPeak) : null;
                             return (
-                              <tr key={i} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                                <td className="p-2 text-[10px] font-mono">{d.blm}°</td>
-                                <td className="p-2 text-[10px] font-mono truncate max-w-[200px]">{d.fileName}</td>
-                                <td className="p-2 text-[10px] font-mono text-[#60A5FA]">{d.committedPeak?.toFixed(2) ?? '—'}</td>
-                                <td className="p-2 text-[10px] font-mono text-[#F27D26]">{d.candidatePeak?.toFixed(2) ?? '—'}</td>
-                                <td className={`p-2 text-[10px] font-mono ${delta !== null && delta > 20 ? 'text-red-400' : ''}`}>{delta?.toFixed(2) ?? '—'}</td>
+                              <tr key={i} className="border-b border-black/5 hover:bg-black/5 transition-colors">
+                                <td className="p-2 text-[12px] tabular-nums">{d.blm}°</td>
+                                <td className="p-2 text-[12px] tabular-nums truncate max-w-[200px]">{d.fileName}</td>
+                                <td className="p-2 text-[12px] tabular-nums text-[#ff9500]">{d.committedPeak?.toFixed(2) ?? '—'}</td>
+                                <td className="p-2 text-[12px] tabular-nums text-[#0071e3]">{d.candidatePeak?.toFixed(2) ?? '—'}</td>
+                                <td className={`p-2 text-[12px] tabular-nums ${delta !== null && delta > 20 ? 'text-red-600' : ''}`}>{delta?.toFixed(2) ?? '—'}</td>
                               </tr>
                             );
                           })}
@@ -8240,32 +8261,32 @@ export default function App() {
             </div>
           ) : activeTab === 'ifft' ? (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="bg-[#141414] text-[#E4E3E0] border border-[#E4E3E0]/10">
-                <div className="flex items-center justify-between px-6 py-4 border-b border-[#E4E3E0]/10 flex-wrap gap-3">
+              <div className="bg-white text-[#1d1d1f] border border-black/10">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-black/10 flex-wrap gap-3">
                   <div className="flex items-center gap-3">
-                    <Activity size={18} className="text-[#F27D26]" />
+                    <Activity size={18} className="text-[#0071e3]" />
                     <div>
-                      <h3 className="text-lg font-serif italic font-bold">IFFT Verification</h3>
-                      <p className="text-[9px] font-mono opacity-40 mt-0.5">특정 주파수가 실제 신호인지, 재구성한 성분을 원본 ΔR(1/B)와 겹쳐서 확인합니다</p>
+                      <h3 className="text-lg font-semibold">IFFT Verification</h3>
+                      <p className="text-[11px] tabular-nums opacity-40 mt-0.5">특정 주파수가 실제 신호인지, 재구성한 성분을 원본 ΔR(1/B)와 겹쳐서 확인합니다</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-[9px] font-mono uppercase opacity-40">File · Column</span>
+                    <span className="text-[11px] tabular-nums opacity-40">File · Column</span>
                     <select
                       value={ifftSelected?.key ?? ''}
                       onChange={(e) => setIfftResultKey(e.target.value)}
-                      className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[10px] px-3 py-1.5 focus:outline-none focus:border-[#F27D26] cursor-pointer max-w-[280px]"
+                      className="bg-white border border-black/15 text-[#1d1d1f] tabular-nums text-[12px] px-3 py-1.5 focus:outline-none focus:border-[#0071e3] cursor-pointer max-w-[280px]"
                     >
                       {landauSeriesList.map(s => (
-                        <option key={s.key} value={s.key} className="bg-[#141414]">{s.blm}° · {s.col}</option>
+                        <option key={s.key} value={s.key} className="bg-white">{s.blm}° · {s.col}</option>
                       ))}
                     </select>
                   </div>
                 </div>
 
                 {ifftSelected && ifftSelected.result.detectedPeaks.length > 0 && (
-                  <div className="flex items-center gap-2 flex-wrap px-6 py-3 border-b border-[#E4E3E0]/10">
-                    <span className="text-[9px] font-mono uppercase opacity-40 mr-1">Detected peaks:</span>
+                  <div className="flex items-center gap-2 flex-wrap px-6 py-3 border-b border-black/10">
+                    <span className="text-[11px] tabular-nums opacity-40 mr-1">Detected peaks:</span>
                     {ifftSelected.result.detectedPeaks.slice(0, 8).map((p, i) => {
                       const isSelected = ifftSelectedPeakFreqs.includes(p.frequency)
                         || (!!ifftManualBand && p.frequency >= ifftManualBand.lo && p.frequency <= ifftManualBand.hi);
@@ -8278,8 +8299,8 @@ export default function App() {
                             );
                           }}
                           title="Click to add/remove — select two or more to combine and overlay their sum"
-                          className={`px-2.5 py-1 font-mono text-[10px] border transition-colors ${
-                            isSelected ? 'bg-[#F27D26]/20 border-[#F27D26] text-[#F27D26]' : 'bg-white/5 border-white/10 hover:bg-white/10'
+                          className={`px-3 py-1 text-[13px] rounded-full border transition-colors ${
+                            isSelected ? 'bg-[#0071e3]/20 border-[#0071e3] text-[#0071e3]' : 'bg-black/5 border-black/10 hover:bg-black/5'
                           }`}
                         >
                           {p.frequency.toFixed(1)} T
@@ -8289,7 +8310,7 @@ export default function App() {
                     {ifftSelectedPeakFreqs.length > 0 && (
                       <button
                         onClick={() => setIfftSelectedPeakFreqs([])}
-                        className="px-2 py-1 font-mono text-[9px] uppercase border border-white/10 opacity-50 hover:opacity-90 transition-opacity"
+                        className="px-2 py-1 tabular-nums text-[11px] border border-black/10 opacity-50 hover:opacity-90 transition-opacity"
                       >
                         Clear ({ifftSelectedPeakFreqs.length})
                       </button>
@@ -8299,32 +8320,32 @@ export default function App() {
 
                 <div className="flex items-center gap-4 px-6 py-3 flex-wrap">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[8px] font-mono uppercase opacity-40">Band</span>
+                    <span className="text-[12px] tabular-nums opacity-40">Band</span>
                     <input type="number" step="1" value={ifftBandLo || ''} placeholder="lo"
                       ref={wheelStepRef(ifftBandLo, (v: number) => setIfftBandLo(Math.max(0, v)), 1)}
                       onChange={e => setIfftBandLo(Math.max(0, parseFloat(e.target.value) || 0))}
-                      className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[9px] w-16 px-1.5 py-0.5 text-center focus:outline-none focus:border-[#F27D26]" />
-                    <span className="text-[8px] font-mono opacity-30">–</span>
+                      className="bg-white border border-black/15 text-[#1d1d1f] tabular-nums text-[11px] w-16 px-1.5 py-0.5 text-center focus:outline-none focus:border-[#0071e3]" />
+                    <span className="text-[12px] tabular-nums opacity-30">–</span>
                     <input type="number" step="1" value={ifftBandHi || ''} placeholder="hi"
                       ref={wheelStepRef(ifftBandHi, (v: number) => setIfftBandHi(Math.max(0, v)), 1)}
                       onChange={e => setIfftBandHi(Math.max(0, parseFloat(e.target.value) || 0))}
-                      className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[9px] w-16 px-1.5 py-0.5 text-center focus:outline-none focus:border-[#F27D26]" />
-                    <span className="text-[8px] font-mono opacity-30">T</span>
+                      className="bg-white border border-black/15 text-[#1d1d1f] tabular-nums text-[11px] w-16 px-1.5 py-0.5 text-center focus:outline-none focus:border-[#0071e3]" />
+                    <span className="text-[12px] tabular-nums opacity-30">T</span>
                     <button onClick={() => { setIfftBandLo(0); setIfftBandHi(0); setIfftSelectedPeakFreqs([]); }}
-                      className={`px-1.5 py-0.5 font-mono text-[8px] uppercase border transition-all ${ifftBands === null ? 'border-[#F27D26] text-[#F27D26] bg-[#F27D26]/10' : 'border-[#E4E3E0]/15 opacity-40 hover:opacity-70'}`}
+                      className={`px-1.5 py-0.5 tabular-nums text-[12px] border transition-all ${ifftBands === null ? 'border-[#0071e3] text-[#0071e3] bg-[#0071e3]/10' : 'border-black/15 opacity-40 hover:opacity-70'}`}
                       title="Auto: center the band on the dominant peak">Auto</button>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[8px] font-mono uppercase opacity-40">Edge</span>
+                    <span className="text-[12px] tabular-nums opacity-40">Edge</span>
                     <input type="number" step="0.05" min="0" max="1" value={ifftEdge}
                       onChange={e => setIfftEdge(Math.max(0, Math.min(1, parseFloat(e.target.value) || 0)))}
-                      className="bg-[#1a1a1a] border border-[#E4E3E0]/15 text-[#E4E3E0] font-mono text-[9px] w-14 px-1.5 py-0.5 text-center focus:outline-none focus:border-[#F27D26]" />
+                      className="bg-white border border-black/15 text-[#1d1d1f] tabular-nums text-[11px] w-14 px-1.5 py-0.5 text-center focus:outline-none focus:border-[#0071e3]" />
                   </div>
                 </div>
               </div>
 
               {landauSeriesList.length === 0 ? (
-                <div className="bg-[#141414] text-[#E4E3E0] border border-[#E4E3E0]/10 flex items-center justify-center h-40 text-[11px] font-mono opacity-50 text-center px-8">
+                <div className="bg-white text-[#1d1d1f] border border-black/10 flex items-center justify-center h-40 text-[11px] tabular-nums opacity-50 text-center px-8">
                   No processed ΔR(1/B) yet. Go to the Dashboard, pick a column prefix, and click “Process All” first.
                 </div>
               ) : (() => {
@@ -8335,13 +8356,13 @@ export default function App() {
                 return (
                   <>
                     {specView.length > 0 && (
-                      <div className="bg-[#141414] text-[#E4E3E0] p-6 border border-[#E4E3E0]/10">
+                      <div className="bg-white text-[#1d1d1f] p-6 border border-black/10 rounded-2xl">
                         <div className="flex justify-between items-start mb-3">
                           <div>
-                            <h4 className="text-[11px] font-mono uppercase tracking-widest opacity-50">FFT Spectrum — pick the band to test</h4>
-                            <p className="text-[10px] font-mono mt-0.5 text-[#F27D26]">
+                            <h4 className="text-[11px] tabular-nums opacity-50">FFT Spectrum — pick the band to test</h4>
+                            <p className="text-[12px] tabular-nums mt-0.5 text-[#0071e3]">
                               {bands.map(b => `${b.lo.toFixed(1)}–${b.hi.toFixed(1)}`).join(' T, ')} T
-                              <span className="opacity-40 text-[#E4E3E0]">
+                              <span className="opacity-40 text-[#1d1d1f]">
                                 {' '}{bands.length > 1 ? `(${bands.length} peaks combined)` : ifftBands === null ? '(auto: dominant peak)' : '(manual)'}
                               </span>
                             </p>
@@ -8350,58 +8371,58 @@ export default function App() {
                         <div className="h-[180px] w-full">
                           <ResponsiveContainer width="100%" height="100%">
                             <ComposedChart data={specView} margin={{ bottom: 16, left: 10, right: 10 }}>
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#222" />
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5ea" />
                               <XAxis dataKey="frequency" type="number" domain={[0, specMax]}
-                                tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }}
+                                tick={{ fontSize: 9, fontFamily: 'inherit', fill: '#6e6e73' }}
                                 tickFormatter={(v: number) => v.toFixed(0)}
-                                label={{ value: 'F (T)', position: 'insideBottom', offset: 8, fill: '#E4E3E0', fontSize: 9 }} />
-                              <YAxis tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }}
+                                label={{ value: 'F (T)', position: 'insideBottom', offset: 8, fill: '#6e6e73', fontSize: 9 }} />
+                              <YAxis tick={{ fontSize: 9, fontFamily: 'inherit', fill: '#6e6e73' }}
                                 tickFormatter={(v: number) => v.toExponential(0)} width={50} />
-                              <Tooltip contentStyle={{ backgroundColor: '#141414', border: '1px solid #333', fontSize: '9px', color: '#E4E3E0' }}
+                              <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '9px', color: '#1d1d1f' }}
                                 formatter={(v: any) => [typeof v === 'number' ? v.toExponential(3) : v, 'Amp']}
                                 labelFormatter={(v: number) => `F = ${Number(v).toFixed(1)} T`} />
                               {bands.map((b, i) => b.hi > b.lo && (
-                                <ReferenceArea key={i} x1={b.lo} x2={b.hi} fill="#F27D26" fillOpacity={0.15} stroke="#F27D26" strokeOpacity={0.4} />
+                                <ReferenceArea key={i} x1={b.lo} x2={b.hi} fill="#0071e3" fillOpacity={0.15} stroke="#0071e3" strokeOpacity={0.4} />
                               ))}
-                              <Area type="linear" dataKey="amplitude" stroke="#4ADE80" fill="#4ADE80" fillOpacity={0.15} strokeWidth={1} dot={false} isAnimationActive={false} />
+                              <Area type="linear" dataKey="amplitude" stroke="#28a745" fill="#28a745" fillOpacity={0.15} strokeWidth={1} dot={false} isAnimationActive={false} />
                             </ComposedChart>
                           </ResponsiveContainer>
                         </div>
                       </div>
                     )}
 
-                    <div className="bg-[#141414] text-[#E4E3E0] p-6 border border-[#E4E3E0]/10">
+                    <div className="bg-white text-[#1d1d1f] p-6 border border-black/10 rounded-2xl">
                       <div className="flex justify-between items-start mb-3 flex-wrap gap-2">
                         <div>
-                          <h4 className="text-[11px] font-mono uppercase tracking-widest opacity-50">
+                          <h4 className="text-[11px] tabular-nums opacity-50">
                             Raw ΔR vs Reconstructed {bands.length > 1 ? `Combined (${bands.length}) Components` : 'Single Component'}
                           </h4>
-                          <p className="text-[10px] font-mono mt-0.5 opacity-60">
+                          <p className="text-[12px] tabular-nums mt-0.5 opacity-60">
                             {ifftSelected?.blm}° · {ifftSelected?.col} — 재구성된 성분(주황)이 실제 데이터(회색)의 굴곡과 맞아떨어지면 진짜 신호, 그렇지 않으면 노이즈일 가능성이 높습니다.
                             {bands.length > 1 ? ' 여러 주파수를 합쳐서 재구성했습니다.' : ''}
                           </p>
                         </div>
-                        <div className="flex items-center gap-3 text-[9px] font-mono shrink-0">
-                          <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-[#E4E3E0]/50 inline-block" />raw ΔR</span>
-                          <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-[#F27D26] inline-block" />reconstructed</span>
+                        <div className="flex items-center gap-3 text-[11px] tabular-nums shrink-0">
+                          <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-black/5 inline-block" />raw ΔR</span>
+                          <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-[#0071e3] inline-block" />reconstructed</span>
                         </div>
                       </div>
                       <div className="h-[340px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
                           <ComposedChart margin={{ bottom: 20, left: 10, right: 10 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#222" />
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5ea" />
                             <XAxis dataKey="invB" type="number" domain={['dataMin', 'dataMax']}
-                              tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }}
+                              tick={{ fontSize: 9, fontFamily: 'inherit', fill: '#6e6e73' }}
                               tickFormatter={(v: number) => v.toFixed(3)}
-                              label={{ value: '1/B (T⁻¹)', position: 'insideBottom', offset: 10, fill: '#E4E3E0', fontSize: 9 }} />
-                            <YAxis dataKey="val" type="number" tick={{ fontSize: 9, fontFamily: 'monospace', fill: '#E4E3E0' }}
+                              label={{ value: '1/B (T⁻¹)', position: 'insideBottom', offset: 10, fill: '#6e6e73', fontSize: 9 }} />
+                            <YAxis dataKey="val" type="number" tick={{ fontSize: 9, fontFamily: 'inherit', fill: '#6e6e73' }}
                               tickFormatter={(v: number) => v.toExponential(1)} width={60}
-                              label={{ value: 'ΔR', angle: -90, position: 'insideLeft', fill: '#E4E3E0', fontSize: 9 }} />
-                            <Tooltip contentStyle={{ backgroundColor: '#141414', border: '1px solid #333', fontSize: '9px', color: '#E4E3E0' }}
+                              label={{ value: 'ΔR', angle: -90, position: 'insideLeft', fill: '#6e6e73', fontSize: 9 }} />
+                            <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontSize: '9px', color: '#1d1d1f' }}
                               formatter={(v: any) => [typeof v === 'number' ? v.toExponential(4) : v]}
                               labelFormatter={(v: number) => `1/B = ${Number(v).toFixed(4)} (B = ${(1 / v).toFixed(2)} T)`} />
-                            <Line data={ifftOriginalLine} dataKey="val" stroke="#E4E3E0" strokeOpacity={0.5} strokeWidth={1} dot={false} isAnimationActive={false} name="Raw ΔR" />
-                            <Line data={ifftReconLine} dataKey="val" stroke="#F27D26" strokeWidth={1.75} dot={false} isAnimationActive={false} name="Reconstructed" />
+                            <Line data={ifftOriginalLine} dataKey="val" stroke="#1d1d1f" strokeOpacity={0.5} strokeWidth={1} dot={false} isAnimationActive={false} name="Raw ΔR" />
+                            <Line data={ifftReconLine} dataKey="val" stroke="#0071e3" strokeWidth={1.75} dot={false} isAnimationActive={false} name="Reconstructed" />
                           </ComposedChart>
                         </ResponsiveContainer>
                       </div>
@@ -8414,75 +8435,75 @@ export default function App() {
             <>
               {files.length > 0 && analysisResults.length === 0 && !isProcessing && (
                 currentFileResults && fftSkip.has(currentFileResults.id) ? (
-                  <div className="h-[600px] border-2 border-dashed border-[#141414]/20 flex flex-col items-center justify-center text-[#141414]/40 text-center px-8">
+                  <div className="h-[600px] border-2 border-dashed border-black/20 flex flex-col items-center justify-center text-[#1d1d1f]/40 text-center px-8">
                     <Activity size={48} strokeWidth={1} />
-                    <p className="mt-4 font-serif italic text-xl">이 파일은 FFT에서 제외되어 있습니다</p>
-                    <p className="text-xs font-mono uppercase tracking-widest mt-2">
+                    <p className="mt-4 text-xl">이 파일은 FFT에서 제외되어 있습니다</p>
+                    <p className="text-xs tabular-nums mt-2">
                       oscillation score {(oscScores[currentFileResults.id] ?? 0).toFixed(1)} · 사이드바 “FFT Files” 에서 체크하면 분석됩니다
                     </p>
                   </div>
                 ) : (
-                  <div className="h-[600px] border-2 border-dashed border-[#141414]/20 flex flex-col items-center justify-center text-[#141414]/40">
+                  <div className="h-[600px] border-2 border-dashed border-black/20 flex flex-col items-center justify-center text-[#1d1d1f]/40">
                     <Settings2 size={48} strokeWidth={1} />
-                    <p className="mt-4 font-serif italic text-xl">No matching columns found for this file</p>
-                    <p className="text-xs font-mono uppercase tracking-widest mt-2">Please select B and R columns in the sidebar</p>
+                    <p className="mt-4 text-xl">No matching columns found for this file</p>
+                    <p className="text-xs tabular-nums mt-2">Please select B and R columns in the sidebar</p>
                   </div>
                 )
               )}
 
               {files.length === 0 && !isProcessing && (
-                <div className="h-[600px] border-2 border-dashed border-[#141414]/20 flex flex-col items-center justify-center text-[#141414]/40">
+                <div className="h-[600px] border-2 border-dashed border-black/20 flex flex-col items-center justify-center text-[#1d1d1f]/40">
                   <FileText size={48} strokeWidth={1} />
-                  <p className="mt-4 font-serif italic text-xl">Upload data and select columns to begin</p>
-                  <p className="text-xs font-mono uppercase tracking-widest mt-2">Expected format: B (Tesla), R (Ohm)</p>
+                  <p className="mt-4 text-xl">Upload data and select columns to begin</p>
+                  <p className="text-xs tabular-nums mt-2">Expected format: B (Tesla), R (Ohm)</p>
                 </div>
               )}
 
               {isProcessing && (
                 <div className="h-[600px] flex items-center justify-center">
-                  <RefreshCw className="animate-spin text-[#141414]/40" size={32} />
+                  <RefreshCw className="animate-spin text-[#1d1d1f]/40" size={32} />
                 </div>
               )}
 
               {analysisResults.map(res => (
                 <div key={res.columnName} className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <div className="border-l-4 border-[#141414] pl-4">
-                    <h2 className="text-2xl font-serif italic font-bold uppercase tracking-tight">
+                  <div className="border-l-4 border-black/15 pl-4">
+                    <h2 className="text-2xl font-semibold">
                       Analysis: {res.columnName}
                     </h2>
                   </div>
 
                   <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
                     {/* Plot 1: Raw Data & Background */}
-                    <div className="bg-white p-6 border border-[#141414]">
+                    <div className="bg-white p-6 border border-black/15 rounded-2xl">
                       <div className="flex justify-between items-center mb-6">
-                        <h3 className="font-serif italic font-bold text-lg">1. Raw Data & Fit</h3>
-                        <span className="text-[10px] font-mono uppercase opacity-40">R (Ω) vs B (T)</span>
+                        <h3 className="font-semibold text-lg">1. Raw Data & Fit</h3>
+                        <span className="text-[12px] tabular-nums opacity-40">R (Ω) vs B (T)</span>
                       </div>
                       <div className="h-[250px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
                           <LineChart data={res.plotData}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5ea" />
                             <XAxis dataKey="b" type="number" domain={['auto', 'auto']} hide />
-                            <YAxis tick={{ fontSize: 10, fontFamily: 'monospace' }} domain={['auto', 'auto']} />
-                            <Tooltip contentStyle={{ borderRadius: 0, border: '1px solid #141414', fontFamily: 'monospace', fontSize: '10px' }} />
-                            <Line type="monotone" dataKey="r" stroke="#141414" strokeWidth={1} dot={false} name="Measured" />
-                            <Line type="monotone" dataKey="bg" stroke="#F27D26" strokeWidth={1} strokeDasharray="5 5" dot={false} name="Fit" />
+                            <YAxis tick={{ fontSize: 10, fontFamily: 'inherit' }} domain={['auto', 'auto']} />
+                            <Tooltip contentStyle={{ borderRadius: 0, border: '1px solid #e5e5ea', fontFamily: 'inherit', fontSize: '10px' }} />
+                            <Line type="monotone" dataKey="r" stroke="#1d1d1f" strokeWidth={1} dot={false} name="Measured" />
+                            <Line type="monotone" dataKey="bg" stroke="#0071e3" strokeWidth={1} strokeDasharray="5 5" dot={false} name="Fit" />
                           </LineChart>
                         </ResponsiveContainer>
                       </div>
                     </div>
 
                     {/* Plot 2: Oscillatory Component */}
-                    <div className="bg-white p-6 border border-[#141414]">
+                    <div className="bg-white p-6 border border-black/15 rounded-2xl">
                       <div className="flex justify-between items-center mb-6">
-                        <h3 className="font-serif italic font-bold text-lg">2. Oscillatory (ΔR)</h3>
-                        <span className="text-[10px] font-mono uppercase opacity-40">ΔR (Ω) vs 1/B (T⁻¹)</span>
+                        <h3 className="font-semibold text-lg">2. Oscillatory (ΔR)</h3>
+                        <span className="text-[12px] tabular-nums opacity-40">ΔR (Ω) vs 1/B (T⁻¹)</span>
                       </div>
                       <div className="h-[250px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
                           <LineChart data={res.plotData}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5ea" />
                             <XAxis 
                               dataKey="invB" 
                               type="number" 
@@ -8490,12 +8511,12 @@ export default function App() {
                                 maxB && Number(maxB) !== 0 ? 1 / Number(maxB) : 'auto', 
                                 minB && Number(minB) !== 0 ? 1 / Number(minB) : 'auto'
                               ]} 
-                              tick={{ fontSize: 9, fontFamily: 'monospace' }}
+                              tick={{ fontSize: 9, fontFamily: 'inherit' }}
                               label={{ value: '1/B', position: 'insideBottom', offset: -2, fontSize: 9 }}
                             />
-                            <YAxis tick={{ fontSize: 10, fontFamily: 'monospace' }} />
-                            <Tooltip contentStyle={{ borderRadius: 0, border: '1px solid #141414', fontFamily: 'monospace', fontSize: '10px' }} />
-                            <Line type="monotone" dataKey="deltaR" stroke="#141414" strokeWidth={1} dot={false} name="ΔR" />
+                            <YAxis tick={{ fontSize: 10, fontFamily: 'inherit' }} />
+                            <Tooltip contentStyle={{ borderRadius: 0, border: '1px solid #e5e5ea', fontFamily: 'inherit', fontSize: '10px' }} />
+                            <Line type="monotone" dataKey="deltaR" stroke="#1d1d1f" strokeWidth={1} dot={false} name="ΔR" />
                           </LineChart>
                         </ResponsiveContainer>
                       </div>
@@ -8503,7 +8524,7 @@ export default function App() {
                   </div>
 
                   {/* FFT Spectrum */}
-                  <div className="bg-[#141414] text-[#E4E3E0] p-6">
+                  <div className="bg-white text-[#1d1d1f] p-6">
                     {(() => {
                       // Live preview swaps in a range-overridden result only once
                       // fileLiveRange is actively being edited; otherwise this is
@@ -8513,13 +8534,13 @@ export default function App() {
                     <>
                     <div className="flex justify-between items-center mb-6">
                       <div className="flex flex-col">
-                        <h3 className="font-serif italic font-bold text-xl">3. FFT Power Spectrum</h3>
+                        <h3 className="font-semibold text-xl">3. FFT Power Spectrum</h3>
                         {displayRes.peakFrequency && (
                           <div className="flex flex-col">
-                            <span className="text-[10px] font-mono text-[#F27D26]">
+                            <span className="text-[12px] tabular-nums text-[#0071e3]">
                               Peak: {displayRes.peakFrequency.frequency.toFixed(1)} T (Amp: {displayRes.peakFrequency.amplitude.toExponential(2)})
                             </span>
-                            <span className="text-[9px] font-mono opacity-40">
+                            <span className="text-[11px] tabular-nums opacity-40">
                               Max Amp (excl. DC): {(() => { let m = 0; for (let i = 1; i < displayRes.fftResults.length; i++) if (displayRes.fftResults[i].amplitude > m) m = displayRes.fftResults[i].amplitude; return displayRes.fftResults.length > 1 ? m.toExponential(2) : 'N/A'; })()}
                             </span>
                           </div>
@@ -8527,7 +8548,7 @@ export default function App() {
                       </div>
                       <div className="flex items-center gap-4">
                         <div className="flex items-center gap-1.5">
-                          <span className="text-[8px] font-mono uppercase opacity-40">Live Range:</span>
+                          <span className="text-[12px] tabular-nums opacity-40">Live Range:</span>
                           <input
                             type="number"
                             step="0.1"
@@ -8535,9 +8556,9 @@ export default function App() {
                             ref={wheelStepRef(fileLiveRange.minDraft, fileLiveRange.changeMin)}
                             onChange={(e) => fileLiveRange.changeMin(Number(e.target.value))}
                             title="Process All 없이 즉시 미리보기할 Min B (스크롤로 조절 가능)"
-                            className="w-14 bg-[#1a1a1a] border border-[#E4E3E0]/30 p-0.5 font-mono text-[9px] text-[#E4E3E0]"
+                            className="w-14 bg-white border border-black/30 p-0.5 tabular-nums text-[11px] text-[#1d1d1f]"
                           />
-                          <span className="opacity-30 text-[9px]">–</span>
+                          <span className="opacity-30 text-[11px]">–</span>
                           <input
                             type="number"
                             step="0.1"
@@ -8545,43 +8566,43 @@ export default function App() {
                             ref={wheelStepRef(fileLiveRange.maxDraft, fileLiveRange.changeMax)}
                             onChange={(e) => fileLiveRange.changeMax(Number(e.target.value))}
                             title="Process All 없이 즉시 미리보기할 Max B (스크롤로 조절 가능)"
-                            className="w-14 bg-[#1a1a1a] border border-[#E4E3E0]/30 p-0.5 font-mono text-[9px] text-[#E4E3E0]"
+                            className="w-14 bg-white border border-black/30 p-0.5 tabular-nums text-[11px] text-[#1d1d1f]"
                           />
                           {fileLiveRange.active && (
                             <button
                               onClick={() => fileLiveRange.reset(typeof minB === 'number' ? minB : 0, typeof maxB === 'number' ? maxB : 1)}
                               title="Process All 결과로 되돌리기"
-                              className="px-1.5 py-0.5 font-mono text-[8px] uppercase border border-[#F27D26]/50 text-[#F27D26] hover:bg-[#F27D26]/10"
+                              className="px-1.5 py-0.5 tabular-nums text-[12px] border border-[#0071e3]/50 text-[#0071e3] hover:bg-[#0071e3]/10"
                             >
                               Reset
                             </button>
                           )}
                         </div>
                         <div className="flex items-center gap-2">
-                          <label className="text-[9px] font-mono uppercase opacity-60">Auto Range</label>
+                          <label className="text-[11px] tabular-nums opacity-60">Auto Range</label>
                           <input
                             type="checkbox"
                             checked={autoFFTRange}
                             onChange={(e) => setAutoFFTRange(e.target.checked)}
-                            className="accent-[#F27D26]"
+                            className="accent-[#0071e3]"
                           />
                         </div>
                         {!autoFFTRange && (
                           <div className="flex items-center gap-2">
-                            <label className="text-[9px] font-mono uppercase opacity-60">Max Freq:</label>
+                            <label className="text-[11px] tabular-nums opacity-60">Max Freq:</label>
                             <input
                               type="number"
                               value={manualMaxFreq}
                               onChange={(e) => setManualMaxFreq(Number(e.target.value))}
-                              className="w-20 bg-[#141414] border border-[#E4E3E0]/30 p-1 font-mono text-[10px] text-[#E4E3E0]"
+                              className="w-20 bg-white border border-black/30 p-1 tabular-nums text-[12px] text-[#1d1d1f]"
                             />
                           </div>
                         )}
-                        <span className="text-[10px] font-mono uppercase opacity-40 text-[#E4E3E0]">Amplitude vs Frequency (T)</span>
+                        <span className="text-[12px] tabular-nums opacity-40 text-[#1d1d1f]">Amplitude vs Frequency (T)</span>
                       </div>
                     </div>
                     {fileLiveRange.active && (
-                      <p className="text-[8px] font-mono text-[#F27D26] text-right -mt-4 mb-4">
+                      <p className="text-[12px] tabular-nums text-[#0071e3] text-right -mt-4 mb-4">
                         Live preview [{fileLiveMinBEff.toFixed(2)}, {fileLiveMaxBEff.toFixed(2)}] T — not yet Process All'd
                       </p>
                     )}
@@ -8594,23 +8615,23 @@ export default function App() {
                         <ComposedChart data={downsampleFFT(displayRes.fftResults, 1000)}>
                           <defs>
                             <linearGradient id={`colorAmp-${res.columnName}`} x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#F27D26" stopOpacity={0.8}/>
-                              <stop offset="95%" stopColor="#F27D26" stopOpacity={0}/>
+                              <stop offset="5%" stopColor="#0071e3" stopOpacity={0.8}/>
+                              <stop offset="95%" stopColor="#0071e3" stopOpacity={0}/>
                             </linearGradient>
                           </defs>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#333" />
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5ea" />
                           <XAxis
                             dataKey="frequency"
                             type="number"
                             domain={[0, autoFFTRange ? (batchSummary.length > 0 ? globalSuggestedMaxFreq : displayRes.suggestedMaxFreq) : manualMaxFreq]}
                             allowDataOverflow={true}
-                            tick={{ fontSize: 10, fontFamily: 'monospace', fill: '#E4E3E0' }}
-                            label={{ value: 'Frequency (T)', position: 'insideBottom', offset: -5, fill: '#E4E3E0', fontSize: 10 }}
+                            tick={{ fontSize: 10, fontFamily: 'inherit', fill: '#6e6e73' }}
+                            label={{ value: 'Frequency (T)', position: 'insideBottom', offset: -5, fill: '#6e6e73', fontSize: 10 }}
                           />
-                          <YAxis tick={{ fontSize: 10, fontFamily: 'monospace', fill: '#E4E3E0' }} />
+                          <YAxis tick={{ fontSize: 10, fontFamily: 'inherit', fill: '#6e6e73' }} />
                           <Tooltip
-                            contentStyle={{ backgroundColor: '#141414', borderRadius: 0, border: '1px solid #E4E3E0', fontFamily: 'monospace', fontSize: '10px', color: '#E4E3E0' }}
-                            itemStyle={{ color: '#F27D26' }}
+                            contentStyle={{ backgroundColor: '#ffffff', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)', border: '1px solid #e5e5ea', fontFamily: 'inherit', fontSize: '10px', color: '#1d1d1f' }}
+                            itemStyle={{ color: '#0071e3' }}
                             formatter={(value: any, name: string) => {
                               if (name === 'Amplitude') return [value.toExponential(4), name];
                               if (name === 'Threshold') return [value.toExponential(4), name];
@@ -8620,19 +8641,19 @@ export default function App() {
                           {autoFFTRange && batchSummary.length > 0 && (
                             <ReferenceLine
                               x={globalSuggestedMaxFreq / 1.5}
-                              stroke="#F27D26"
+                              stroke="#0071e3"
                               strokeDasharray="3 3"
-                              label={{ value: 'Max Peak', position: 'top', fill: '#F27D26', fontSize: 9, fontFamily: 'monospace' }}
+                              label={{ value: 'Max Peak', position: 'top', fill: '#0071e3', fontSize: 9, fontFamily: 'inherit' }}
                               opacity={0.5}
                             />
                           )}
-                          <Area type="monotone" dataKey="amplitude" stroke="#F27D26" fillOpacity={1} fill={`url(#colorAmp-${res.columnName})`} name="Amplitude" />
-                          <Line type="stepAfter" dataKey="threshold" stroke="#FFFFFF" strokeDasharray="5 5" dot={false} name="Threshold" opacity={0.5} />
+                          <Area type="monotone" dataKey="amplitude" stroke="#0071e3" fillOpacity={1} fill={`url(#colorAmp-${res.columnName})`} name="Amplitude" />
+                          <Line type="stepAfter" dataKey="threshold" stroke="#1d1d1f" strokeDasharray="5 5" dot={false} name="Threshold" opacity={0.5} />
                           <Scatter
                             data={displayRes.detectedPeaks}
                             name="Peaks"
-                            fill="#FFFFFF"
-                            stroke="#F27D26"
+                            fill="#1d1d1f"
+                            stroke="#0071e3"
                             strokeWidth={2}
                             dataKey="amplitude"
                             isAnimationActive={false}
@@ -8642,7 +8663,7 @@ export default function App() {
                               position="top"
                               offset={10}
                               formatter={(val: number) => val.toFixed(2)}
-                              style={{ fontSize: '10px', fontFamily: 'monospace', fill: '#FFFFFF' }}
+                              style={{ fontSize: '10px', fontFamily: 'inherit', fill: '#1d1d1f' }}
                             />
                           </Scatter>
                         </ComposedChart>
@@ -8653,39 +8674,39 @@ export default function App() {
                     })()}
 
                     {/* Detected Peaks Table */}
-                    <div className="mt-8 border-t border-[#E4E3E0]/10 pt-6">
+                    <div className="mt-8 border-t border-black/10 pt-6">
                       <div className="flex justify-between items-center mb-4">
-                        <h4 className="font-serif italic font-bold text-lg">Detected Peaks (Prominence & Width Filter)</h4>
+                        <h4 className="font-semibold text-lg">Detected Peaks (Prominence & Width Filter)</h4>
                         <div className="flex items-center gap-4">
                           <button 
                             onClick={() => copyPeaksToClipboard(res.detectedPeaks)}
-                            className="flex items-center gap-2 bg-[#E4E3E0]/10 hover:bg-[#E4E3E0]/20 px-3 py-1 text-[10px] font-mono uppercase transition-all"
+                            className="flex items-center gap-2 bg-black/5 hover:bg-black/5 px-3 py-1 text-[12px] tabular-nums transition-all"
                           >
                             <Copy size={12} />
                             Copy Peaks
                           </button>
                           <div className="flex flex-col items-end">
-                            <span className="text-[9px] font-mono uppercase opacity-40">Frequency-Dependent Thresholds Active</span>
-                            <span className="text-[9px] font-mono uppercase opacity-40">Sorted by Amplitude</span>
+                            <span className="text-[11px] tabular-nums opacity-40">Frequency-Dependent Thresholds Active</span>
+                            <span className="text-[11px] tabular-nums opacity-40">Sorted by Amplitude</span>
                           </div>
                         </div>
                       </div>
                       <div className="overflow-x-auto">
-                        <table className="w-full text-left font-mono text-[11px]">
+                        <table className="w-full text-left tabular-nums text-[11px]">
                           <thead>
-                            <tr className="border-b border-[#E4E3E0]/20 text-[#F27D26]">
-                              <th className="py-2 px-4 uppercase tracking-wider">Rank</th>
-                              <th className="py-2 px-4 uppercase tracking-wider">Frequency (T)</th>
-                              <th className="py-2 px-4 uppercase tracking-wider">Amplitude</th>
-                              <th className="py-2 px-4 uppercase tracking-wider">% of Max</th>
+                            <tr className="border-b border-black/20 text-[#0071e3]">
+                              <th className="py-2 px-4">Rank</th>
+                              <th className="py-2 px-4">Frequency (T)</th>
+                              <th className="py-2 px-4">Amplitude</th>
+                              <th className="py-2 px-4">% of Max</th>
                             </tr>
                           </thead>
                           <tbody>
                             {res.detectedPeaks.length > 0 ? (
                               res.detectedPeaks.slice(0, 10).map((peak, idx) => (
-                                <tr key={idx} className="border-b border-[#E4E3E0]/5 hover:bg-[#E4E3E0]/5 transition-colors">
+                                <tr key={idx} className="border-b border-black/5 hover:bg-black/5 transition-colors">
                                   <td className="py-2 px-4 opacity-60">#{idx + 1}</td>
-                                  <td className="py-2 px-4 font-bold">{peak.frequency.toFixed(2)}</td>
+                                  <td className="py-2 px-4 font-semibold">{peak.frequency.toFixed(2)}</td>
                                   <td className="py-2 px-4">{peak.amplitude.toExponential(3)}</td>
                                   <td className="py-2 px-4">
                                     {res.peakFrequency 
@@ -8696,13 +8717,13 @@ export default function App() {
                               ))
                             ) : (
                               <tr>
-                                <td colSpan={4} className="py-4 px-4 text-center opacity-40 italic">No peaks detected above threshold</td>
+                                <td colSpan={4} className="py-4 px-4 text-center opacity-40">No peaks detected above threshold</td>
                               </tr>
                             )}
                           </tbody>
                         </table>
                         {res.detectedPeaks.length > 10 && (
-                          <p className="mt-2 text-[9px] opacity-40 italic text-right">Showing top 10 peaks</p>
+                          <p className="mt-2 text-[11px] opacity-40 text-right">Showing top 10 peaks</p>
                         )}
                       </div>
                     </div>
@@ -8715,7 +8736,7 @@ export default function App() {
       </main>
 
       {/* Footer Info */}
-      <footer className="mt-12 pt-6 border-t border-[#141414]/10 flex flex-col md:flex-row justify-between gap-6">
+      <footer className="mt-12 pt-6 border-t border-black/10 flex flex-col md:flex-row justify-between gap-6">
         <div className="max-w-2xl flex gap-2">
           <Info size={14} className="shrink-0 mt-0.5 opacity-50" />
           <p className="text-[11px] leading-relaxed opacity-50">
@@ -8723,7 +8744,7 @@ export default function App() {
             Pipeline: polynomial background subtraction → 1/B conversion → uniform interpolation → FFT.
           </p>
         </div>
-        <p className="text-[9px] font-mono uppercase tracking-widest opacity-40 md:text-right whitespace-nowrap">
+        <p className="text-[11px] tabular-nums opacity-40 md:text-right whitespace-nowrap">
           All processing runs locally in your browser
         </p>
       </footer>

@@ -44,15 +44,15 @@ export function MiniFFT({ data, freqMax, peaks, showPeaks }: {
   return (
     <div className="relative w-full h-full">
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="100%" preserveAspectRatio="none">
-        {area && <path d={area} fill="#F27D26" fillOpacity={0.3} stroke="none" />}
-        {line && <path d={line} fill="none" stroke="#F27D26" strokeWidth={1} vectorEffect="non-scaling-stroke" />}
+        {area && <path d={area} fill="#0071e3" fillOpacity={0.3} stroke="none" />}
+        {line && <path d={line} fill="none" stroke="#0071e3" strokeWidth={1} vectorEffect="non-scaling-stroke" />}
       </svg>
       {vpeaks.map((p, i) => (
         <span key={i}>
-          <span className="absolute rounded-full bg-white border border-[#F27D26] pointer-events-none"
+          <span className="absolute rounded-full bg-white border border-[#0071e3] pointer-events-none"
             style={{ left: `${(p.frequency / xMax) * 100}%`, top: `${(1 - p.amplitude / yMax) * 100}%`, width: 4, height: 4, transform: 'translate(-50%,-50%)' }} />
-          <span className="absolute font-mono pointer-events-none whitespace-nowrap"
-            style={{ left: `${(p.frequency / xMax) * 100}%`, top: `${(1 - p.amplitude / yMax) * 100}%`, transform: 'translate(-50%,-140%)', fontSize: '8px', color: '#fff' }}>
+          <span className="absolute tabular-nums pointer-events-none whitespace-nowrap"
+            style={{ left: `${(p.frequency / xMax) * 100}%`, top: `${(1 - p.amplitude / yMax) * 100}%`, transform: 'translate(-50%,-140%)', fontSize: '8px', color: '#1d1d1f' }}>
             {p.frequency.toFixed(1)}
           </span>
         </span>
