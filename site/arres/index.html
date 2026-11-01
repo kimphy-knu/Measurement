@@ -177,16 +177,21 @@
       : '로컬 서버가 꺼져 있음 — run_live.bat 을 실행하세요';
   }
 
-  $('openForm').addEventListener('submit', (e) => {
+  $('openForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const dir = $('dir').value.trim().replace(/^"|"$/g, '');
     if (!dir) return;
     saveRecent(dir);
+    renderRecent();
+    // 서버가 꺼진 채로 넘어가면 브라우저의 "연결 거부" 화면만 보게 되니, 한 번 더 확인하고 막는다.
+    if (!serverUp) await ping();
+    if (!serverUp) {
+      $('msg').innerHTML = '<b style="color:var(--warn)">로컬 서버가 꺼져 있습니다.</b> ARRES 폴더의 <code>run_live.bat</code> 을 실행한 뒤(검은 창은 열어 둔 채) 다시 열기를 누르세요.';
+      return;
+    }
     const q = new URLSearchParams({ dir });
     if ($('extra').checked) q.set('extra', '1');
-    $('msg').textContent = serverUp
-      ? '불러오는 중… 처음 여는 폴더는 1~2분 걸립니다.'
-      : '서버 확인이 안 됐지만 열어 봅니다. 안 열리면 run_live.bat 을 실행했는지 확인하세요.';
+    $('msg').textContent = '불러오는 중… 처음 여는 폴더는 1~2분 걸립니다.';
     $('openBtn').disabled = true;
     location.href = SERVER + '/open?' + q.toString();
   });
