@@ -5204,7 +5204,7 @@ export default function App() {
                   {/* Summary Charts */}
                   <div className="bg-white text-[#1d1d1f] p-8 border border-black/10 animate-in fade-in zoom-in duration-500 rounded-2xl">
                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 mb-12">
-                      <div className="h-[450px] w-full bg-black/50 p-6 border border-black/5">
+                      <div className="h-[450px] w-full bg-[#fbfbfd] p-6 border border-black/[0.06] rounded-xl">
                         <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
                           <h4 className="text-xs tabular-nums opacity-60">All Detected Frequencies vs BLM</h4>
                           <div className="flex items-center gap-1.5">
@@ -5288,7 +5288,7 @@ export default function App() {
                         </ResponsiveContainer>
                       </div>
 
-                      <div className="h-[450px] w-full bg-black/50 p-6 border border-black/5">
+                      <div className="h-[450px] w-full bg-[#fbfbfd] p-6 border border-black/[0.06] rounded-xl">
                         <h4 className="text-xs tabular-nums opacity-60 mb-6 text-center">Peak Amplitude Distribution</h4>
                         <ResponsiveContainer width="100%" height="90%">
                           <ScatterChart margin={{ bottom: 20 }}>
@@ -5329,7 +5329,7 @@ export default function App() {
                             <Scatter 
                               name="Peak Amplitudes" 
                               data={batchSummary} 
-                              fill="#1d1d1f" 
+                              fill="#ffffff" 
                               stroke="#0071e3"
                               strokeWidth={1}
                             />
@@ -7177,7 +7177,7 @@ export default function App() {
               ) : (
                 <div className="grid grid-cols-1 gap-12">
                   <div className="bg-white text-[#1d1d1f] p-8 border border-black/10 rounded-2xl">
-                    <div className="h-[600px] w-full bg-black/50 p-6 border border-black/5">
+                    <div className="h-[600px] w-full bg-[#fbfbfd] p-6 border border-black/[0.06] rounded-xl">
                       <h4 className="text-xs tabular-nums opacity-60 mb-6 text-center">Frequency vs BLM (Branches)</h4>
                       <ResponsiveContainer width="100%" height="90%">
                         <ScatterChart margin={{ bottom: 20 }}>
@@ -7886,7 +7886,7 @@ export default function App() {
 
                     {assembleData.length > 0 && (
                       <div className="space-y-12">
-                         <div className="h-[600px] w-full bg-black/50 p-6 border border-black/5">
+                         <div className="h-[600px] w-full bg-[#fbfbfd] p-6 border border-black/[0.06] rounded-xl">
                             <h4 className="text-xs tabular-nums opacity-60 mb-6 text-center">FFT Evolution vs {blmMode === 'step' ? 'Steps' : 'BLM'}</h4>
                             <ResponsiveContainer width="100%" height="90%">
                               <LineChart margin={{ bottom: 20 }}>
@@ -7925,7 +7925,7 @@ export default function App() {
                                   <Scatter
                                     key={`peaks-${item.fileName}`}
                                     data={(item.peaks || []).map(p => ({ frequency: p.frequency, amplitude: p.amplitude }))}
-                                    fill="#1d1d1f"
+                                    fill="#ffffff"
                                     stroke={`hsl(${(idx * 360) / assembleData.length}, 70%, 60%)`}
                                     strokeWidth={1}
                                     name={`Peaks ${item.fileName}`}
@@ -8652,7 +8652,7 @@ export default function App() {
                           <Scatter
                             data={displayRes.detectedPeaks}
                             name="Peaks"
-                            fill="#1d1d1f"
+                            fill="#ffffff"
                             stroke="#0071e3"
                             strokeWidth={2}
                             dataKey="amplitude"
