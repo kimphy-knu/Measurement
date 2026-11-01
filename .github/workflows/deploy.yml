@@ -1,4 +1,7 @@
-# Build the Vite app and publish dist/ to GitHub Pages on every push to main.
+# Build the site and publish it to GitHub Pages on every push to main/master:
+#   /           site/index.html (landing)
+#   /qo/        this repo's Vite app
+#   /transport/ /arres/   prebuilt copies in site/, refreshed by scripts/sync-apps.ps1
 # One-time setup: repo Settings → Pages → Source: "GitHub Actions".
 name: Deploy to GitHub Pages
 
@@ -27,9 +30,15 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      # Landing page and the prebuilt sibling tools (scripts/sync-apps.ps1)
+      # at the root, this app's build under /qo/.
+      - run: |
+          cp -r site _site
+          cp -r dist _site/qo
+          touch _site/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: _site
 
   deploy:
     needs: build

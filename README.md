@@ -17,11 +17,18 @@ or double-click `start.bat`. Opens at http://localhost:3000.
 
 ## Deploy (GitHub Pages)
 
-Pushing to `main` builds and publishes the site via
-[.github/workflows/deploy.yml](.github/workflows/deploy.yml).
+Pushing to `main`/`master` builds and publishes https://kimphy-knu.github.io/Measurement/
+via [.github/workflows/deploy.yml](.github/workflows/deploy.yml):
 
-One-time setup: repo **Settings → Pages → Source: GitHub Actions**.
-The site is then served at `https://<user>.github.io/<repo>/`.
+| Path | Source |
+|---|---|
+| `/` | [site/index.html](site/index.html) — landing page |
+| `/qo/` | this app |
+| `/transport/` | prebuilt from `..\transport data analysis` |
+| `/arres/` | `..\ARRES\tools\arres_combined_demo.html` (synthetic demo data) |
+
+After changing Transport or ARRES, refresh their copies with
+`pwsh scripts/sync-apps.ps1`, then commit and push.
 
 Measurement data (`/*.json`, `/*.txt`, `/*.dat`, `/*.csv` at the repo root) is
 git-ignored and is never committed or deployed.
