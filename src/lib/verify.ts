@@ -88,8 +88,10 @@ export function toUniform(series: { invB: number; val: number }[]): UniformSerie
 }
 
 // The band-limited component itself (for plotting next to ΔR): real part of
-// the analytic signal and its envelope, on the uniform 1/B grid.
-export function reconstruct(u: UniformSeries, F: number): { x: number; val: number; comp: number; env: number }[] {
+// the analytic signal and its envelope, on the uniform 1/B grid. `rest` is
+// what remains of ΔR above F/2 once the component is removed — the noise the
+// component has to stand out from, without the slow background leftovers.
+export function reconstruct(u: UniformSeries, F: number): { x: number; val: number; comp: number; env: number; rest: number }[] {
   const N = u.y.length;
   const res = 1 / (u.x[N - 1] - u.x[0]);
   const re = Float64Array.from(u.y), im = new Float64Array(N);
@@ -99,14 +101,17 @@ export function reconstruct(u: UniformSeries, F: number): { x: number; val: numb
   const df = 1 / (N * u.dx);
   const hw = Math.max(1.5 * res, 0.08 * F);
   const zr = new Float64Array(N), zi = new Float64Array(N);
+  const hr = new Float64Array(N), hi = new Float64Array(N);
   for (let k = 1; k < N / 2; k++) {
     const f = k * df;
     if (f >= F - hw && f <= F + hw) { zr[k] = 2 * re[k]; zi[k] = 2 * im[k]; }
+    if (f >= F / 2) { hr[k] = re[k]; hi[k] = im[k]; hr[N - k] = re[N - k]; hi[N - k] = im[N - k]; }
   }
   fft(zr, zi, true);
-  const out: { x: number; val: number; comp: number; env: number }[] = [];
+  fft(hr, hi, true);
+  const out: { x: number; val: number; comp: number; env: number; rest: number }[] = [];
   const stride = Math.max(1, Math.floor(N / 1500));
-  for (let i = 0; i < N; i += stride) out.push({ x: u.x[i], val: u.y[i] - mean, comp: zr[i], env: Math.hypot(zr[i], zi[i]) });
+  for (let i = 0; i < N; i += stride) out.push({ x: u.x[i], val: u.y[i] - mean, comp: zr[i], env: Math.hypot(zr[i], zi[i]), rest: hr[i] - zr[i] });
   return out;
 }
 

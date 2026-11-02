@@ -3888,6 +3888,29 @@ export default function App() {
     const s = wfSeries.find(x => x.fileName === p.fileName && x.col === p.col);
     return s && s.blm !== p.angle ? { ...p, angle: s.blm } : p;
   }), [pickedPeaks, wfSeries]);
+  // Step 2's B-window scan: re-run one (file, column) on another window, the
+  // measured field extent, and "apply" = set Min B and process everything.
+  const wfReprocess = useCallback((s: WfSeries, min: number, max: number) => {
+    const f = files[s.fileIdx];
+    return f ? processFileData(f.data, resolveBCol(f), s.result.columnName, undefined, undefined, { min, max }) : null;
+  }, [files, processFileData, resolveBCol]);
+  const wfField = useMemo(() => {
+    let lo = Infinity, hi = -Infinity;
+    for (const f of files) {
+      const bc = resolveBCol(f);
+      for (const row of f.data) {
+        const b = parseFloat(String(row[bc]));
+        if (b > 0) { if (b < lo) lo = b; if (b > hi) hi = b; }
+      }
+    }
+    return hi > lo ? { lo, hi } : null;
+  }, [files, resolveBCol]);
+  const wfPendingProcess = useRef(false);
+  useEffect(() => {
+    if (!wfPendingProcess.current) return;
+    wfPendingProcess.current = false;
+    handleProcessAll();
+  }, [minB]); // eslint-disable-line react-hooks/exhaustive-deps
   const angleNote = `${angleSource === 'blm' ? 'BLM 컬럼' : angleSource === 'title' ? '파일명 숫자' : '파일 순서'} · BLM/° = ${blmPerDegree} · 오프셋 ${blmOffset}°`;
 
   const landauOpts = useMemo(() => ({
@@ -5108,7 +5131,13 @@ export default function App() {
             />
           ) : activeTab === 'wf2' ? (
             <PeakPickStep series={wfSeries} column={wfCol} columns={wfColumns} onColumn={setWfColumn}
-              picked={pickedWithAngles} setPicked={setPickedPeaks} />
+              picked={pickedWithAngles} setPicked={setPickedPeaks}
+              scan={{
+                reprocess: wfReprocess, field: wfField,
+                curMin: typeof minB === 'number' ? minB : wfField?.lo ?? 0,
+                curMax: typeof maxB === 'number' && maxB > 0 ? maxB : wfField?.hi ?? Infinity,
+                onApply: b => { wfPendingProcess.current = true; setMinB(b); setTempMinB(b); },
+              }} />
           ) : activeTab === 'wf3' ? (
             <VerifyStep series={wfSeries} picked={pickedWithAngles} setPicked={setPickedPeaks} />
           ) : activeTab === 'wf4' ? (

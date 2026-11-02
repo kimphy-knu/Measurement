@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { FFTResult } from '../types';
 
 /**
@@ -13,7 +13,7 @@ import type { FFTResult } from '../types';
  */
 
 export interface ContourRow { angle: number; fileName: string; fft: FFTResult[]; fLo: number }
-export interface ContourPeak { id: string; angle: number; F: number; status: 'unchecked' | 'confirmed' | 'rejected'; manual?: boolean; title?: string }
+export interface ContourPeak { id: string; angle: number; F: number; status: 'unchecked' | 'confirmed' | 'rejected'; manual?: boolean; title?: string; fill?: string }
 
 const BINS = 600;
 const LEVELS = 14;
@@ -48,12 +48,14 @@ function niceTicks(lo: number, hi: number, n = 6) {
 
 const M = { l: 56, r: 16, t: 12, b: 44 };
 
-export function AngleContour({ rows, fMax, normalize, peaks, height = 460, onPick }: {
+export function AngleContour({ rows, fMax, normalize, peaks, height = 460, legend, onPick }: {
   rows: ContourRow[];
   fMax: number;
   normalize: boolean;
   peaks: ContourPeak[];
   height?: number;
+  // replaces the marker legend (for peaks coloured by `fill`)
+  legend?: ReactNode;
   // click: every file measured at the nearest angle, and the frequency
   onPick?: (fileNames: string[], F: number) => void;
 }) {
@@ -220,7 +222,7 @@ export function AngleContour({ rows, fMax, normalize, peaks, height = 460, onPic
               <line x1={0} x2={pw} y1={hover.y} y2={hover.y} stroke="#1d1d1f" strokeOpacity={0.25} strokeDasharray="3 3" />
             </>}
             {peaks.filter(p => p.F <= fMax && p.angle >= thLo && p.angle <= thHi).map(p => (
-              <circle key={p.id} cx={xOf(p.angle)} cy={yOf(p.F)} r={4.5} fill={MARKER[p.status].fill}
+              <circle key={p.id} cx={xOf(p.angle)} cy={yOf(p.F)} r={4.5} fill={p.fill ?? MARKER[p.status].fill}
                 stroke={p.manual ? '#1d1d1f' : p.status === 'rejected' ? '#86868b' : '#ffffff'} strokeWidth={1.5}>
                 <title>{p.title}</title>
               </circle>
@@ -238,12 +240,12 @@ export function AngleContour({ rows, fMax, normalize, peaks, height = 460, onPic
       </div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-3 text-[11px] text-[#6e6e73]" style={{ paddingLeft: M.l }}>
         <div className="flex flex-wrap items-center gap-3">
-          {(Object.keys(MARKER) as ContourPeak['status'][]).map(s => (
+          {legend ?? (Object.keys(MARKER) as ContourPeak['status'][]).map(s => (
             <span key={s} className="flex items-center gap-1.5">
               <span className="h-2.5 w-2.5 rounded-full border" style={{ background: MARKER[s].fill, borderColor: s === 'rejected' ? '#86868b' : '#fff' }} />{MARKER[s].label}
             </span>
           ))}
-          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full border-[1.5px] border-[#1d1d1f] bg-[#ff9500]" />직접 선택</span>
+          {!legend && <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full border-[1.5px] border-[#1d1d1f] bg-[#ff9500]" />직접 선택</span>}
           <span className="flex items-center gap-1.5"><span className="h-2.5 w-3 rounded-sm bg-[repeating-linear-gradient(45deg,#c8c8cc_0_1px,#ececf0_1px_5px)]" />빗금 = 진동 6회 미만 (B 하한을 낮추면 줄어듦)</span>
           <span className="flex items-center gap-1.5"><span className="h-2 w-px bg-[#1d1d1f]" />측정 각도</span>
         </div>

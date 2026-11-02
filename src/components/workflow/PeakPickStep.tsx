@@ -7,6 +7,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { AngleContour } from '../AngleContour';
+import { fLoOf, thresholdPeaks } from '../../lib/peaks';
+import { WindowScan, type WindowScanProps } from './WindowScan';
 import { Pill, StepCard, STATUS_LABEL, STATUS_STYLE, fmt, type PickedPeak, type Series } from './shared';
 
 function snapPeak(s: Series, F: number) {
@@ -16,61 +18,6 @@ function snapPeak(s: Series, F: number) {
   return best;
 }
 
-// FFT resolution 1/Δ(1/B) of the processed window
-function resolutionOf(s: Series) {
-  let lo = Infinity, hi = -Infinity;
-  for (const d of s.result.plotData) if (Number.isFinite(d.invB)) { lo = Math.min(lo, d.invB); hi = Math.max(hi, d.invB); }
-  return hi > lo ? 1 / (hi - lo) : NaN;
-}
-
-// lowest frequency that still has minCycles oscillations in the 1/B window
-export const MIN_CYCLES = 6;
-export const fLoOf = (s: Series) => MIN_CYCLES * resolutionOf(s);
-
-// Spectral maxima of one file, judged the way the contour map shows them:
-// height relative to the strongest peak of that file in the usable range
-// [max(fMin, 6·resolution), fMax] ≥ relMin, and a prominence of at least 10 %
-// of it (so a shoulder on a slope isn't a peak). A median-based SNR doesn't
-// work here — when an oscillation fills much of the window the median is
-// signal, not noise. Below 6·resolution there are too few cycles to verify.
-// Maxima closer than one resolution are one peak (zero-padding ripples).
-export function thresholdPeaks(s: Series, opt: { relMin: number; fMin: number; fMax: number; maxPerFile: number }) {
-  const fr = s.result.fftResults;
-  const res = resolutionOf(s);
-  if (!fr.length || !Number.isFinite(res)) return [];
-  const lo = Math.max(opt.fMin, MIN_CYCLES * res);
-  let i0 = -1, i1 = -1, top = 0;
-  for (let i = 0; i < fr.length; i++) {
-    if (fr[i].frequency < lo || fr[i].frequency > opt.fMax) continue;
-    if (i0 < 0) i0 = i;
-    i1 = i;
-    top = Math.max(top, fr[i].amplitude);
-  }
-  if (i1 - i0 < 2 || !(top > 0)) return [];
-  const prominence = (i: number) => {
-    const a = fr[i].amplitude;
-    let lmin = a, rmin = a;
-    for (let l = i - 1; l >= i0 && fr[l].amplitude <= a; l--) lmin = Math.min(lmin, fr[l].amplitude);
-    for (let r = i + 1; r <= i1 && fr[r].amplitude <= a; r++) rmin = Math.min(rmin, fr[r].amplitude);
-    return a - Math.max(lmin, rmin);
-  };
-  const cand: { frequency: number; amplitude: number; rel: number }[] = [];
-  for (let i = i0 + 1; i < i1; i++) {
-    const p = fr[i];
-    if (p.amplitude >= fr[i - 1].amplitude && p.amplitude > fr[i + 1].amplitude
-      && p.amplitude >= opt.relMin * top && prominence(i) >= 0.1 * top)
-      cand.push({ ...p, rel: p.amplitude / top });
-  }
-  cand.sort((a, b) => b.amplitude - a.amplitude);
-  const out: typeof cand = [];
-  for (const c of cand) {
-    if (out.some(o => Math.abs(o.frequency - c.frequency) < res)) continue;
-    out.push(c);
-    if (out.length >= opt.maxPerFile) break;
-  }
-  return out;
-}
-
 const peakId = (s: Series, F: number) => `${s.fileName}::${s.col}::${F.toFixed(2)}`;
 
 // threshold settings outlive the step being unmounted (switching steps must
@@ -78,8 +25,10 @@ const peakId = (s: Series, F: number) => `${s.fileName}::${s.col}::${F.toFixed(2
 // 30 % by default: generous on purpose, step 3 sorts real from spurious
 const saved = { on: true, relPct: 30, fMin: 0, maxPerFile: 3 };
 
-export function PeakPickStep({ series, column, columns, onColumn, picked, setPicked }: {
+export function PeakPickStep({ series, column, columns, onColumn, picked, setPicked, scan }: {
   series: Series[];
+  // B-window scan hooks from the app (re-run the pipeline on another window)
+  scan?: Pick<WindowScanProps, 'reprocess' | 'field' | 'curMin' | 'curMax' | 'onApply'>;
   column: string;
   columns: string[];
   onColumn: (c: string) => void;
@@ -110,7 +59,7 @@ export function PeakPickStep({ series, column, columns, onColumn, picked, setPic
 
   // peaks above the threshold, every file of this channel
   const above = useMemo(() => rows.flatMap(s =>
-    thresholdPeaks(s, { relMin: relPct / 100, fMin, fMax, maxPerFile }).map(p => ({
+    thresholdPeaks(s.result, { relMin: relPct / 100, fMin, fMax, maxPerFile }).map(p => ({
       id: peakId(s, p.frequency), fileName: s.fileName, col: s.col, angle: s.blm,
       F: p.frequency, amp: p.amplitude, rel: p.rel, status: 'unchecked' as const, src: 'threshold' as const,
     }))), [rows, relPct, fMin, fMax, maxPerFile]);
@@ -133,7 +82,7 @@ export function PeakPickStep({ series, column, columns, onColumn, picked, setPic
   useEffect(() => { if (autoOn) syncAbove(); }, [autoOn, above]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const mine = picked.filter(p => p.col === column);
-  const contourRows = useMemo(() => rows.map(s => ({ angle: s.blm, fileName: s.fileName, fft: s.result.fftResults, fLo: fLoOf(s) })), [rows]);
+  const contourRows = useMemo(() => rows.map(s => ({ angle: s.blm, fileName: s.fileName, fft: s.result.fftResults, fLo: fLoOf(s.result) })), [rows]);
   const peakTitle = (p: PickedPeak) =>
     `${p.angle}° · ${fmt(p.F, 4)} T · ${STATUS_LABEL[p.status]}${p.rel ? ` · 높이 ${(p.rel * 100).toFixed(0)}%` : ''} · ${p.src === 'threshold' ? '임계값 자동' : '직접 선택'}\n${p.fileName}`;
 
@@ -199,6 +148,7 @@ export function PeakPickStep({ series, column, columns, onColumn, picked, setPic
               ))}
             </div>
           )}
+          {scan && <WindowScan rows={rows} relMin={relPct / 100} fMax={fMax} normalize={normRows} {...scan} />}
         </>
       )}
     </StepCard>
