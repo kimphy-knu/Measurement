@@ -17,7 +17,7 @@ export interface PickedPeak {
   // 'threshold' = added by step 2's SNR threshold and replaced when it changes;
   // absent = picked by hand
   src?: 'threshold';
-  snr?: number;
+  rel?: number;  // height vs the file's strongest peak, for threshold picks
   auto?: Verdict;
   branch?: string;
   note?: string;

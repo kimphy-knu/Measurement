@@ -1,11 +1,12 @@
 // STEP 2 — find candidate frequencies across angles and pick them.
-// The FFT of every file sits in one angle × F heatmap. Every spectral maximum
-// whose SNR clears a threshold is picked automatically (and re-picked when the
-// threshold moves); clicking the map adds one by hand, snapped to the
-// strongest maximum within ±4 %. Steps 3–5 work on the resulting list.
+// The FFT of every file sits in one θ × F contour map with the picked peaks
+// on it. Every spectral maximum that clears a relative-height threshold is
+// picked automatically (and re-picked when the threshold moves); clicking the
+// map adds one by hand, snapped to the strongest maximum within ±4 %. Steps
+// 3–5 work on the resulting list.
 import { useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
-import { FFTHeatmap } from '../FFTHeatmap';
+import { AngleContour } from '../AngleContour';
 import { Pill, StepCard, STATUS_LABEL, STATUS_STYLE, fmt, type PickedPeak, type Series } from './shared';
 
 function snapPeak(s: Series, F: number) {
@@ -22,27 +23,43 @@ function resolutionOf(s: Series) {
   return hi > lo ? 1 / (hi - lo) : NaN;
 }
 
-// Spectral maxima with amplitude / noise floor ≥ snrMin. The floor is the
-// median of the spectrum between 4·resolution (below is leftover background)
-// and fMax. Below minCycles·resolution there are too
-// few oscillations in the window to verify, so those are skipped. Maxima
-// closer than one resolution are one peak (zero-padding ripples).
-export function thresholdPeaks(s: Series, opt: { snrMin: number; fMin: number; fMax: number; minCycles: number; maxPerFile: number }) {
+// lowest frequency that still has minCycles oscillations in the 1/B window
+export const MIN_CYCLES = 6;
+export const fLoOf = (s: Series) => MIN_CYCLES * resolutionOf(s);
+
+// Spectral maxima of one file, judged the way the contour map shows them:
+// height relative to the strongest peak of that file in the usable range
+// [max(fMin, 6·resolution), fMax] ≥ relMin, and a prominence of at least 10 %
+// of it (so a shoulder on a slope isn't a peak). A median-based SNR doesn't
+// work here — when an oscillation fills much of the window the median is
+// signal, not noise. Below 6·resolution there are too few cycles to verify.
+// Maxima closer than one resolution are one peak (zero-padding ripples).
+export function thresholdPeaks(s: Series, opt: { relMin: number; fMin: number; fMax: number; maxPerFile: number }) {
   const fr = s.result.fftResults;
   const res = resolutionOf(s);
   if (!fr.length || !Number.isFinite(res)) return [];
-  // only up to fMax: far above it the (smoothed, interpolated) spectrum is
-  // nearly empty and a median there would make every bump look significant
-  const floorAmps = fr.filter(p => p.frequency >= 4 * res && p.frequency <= opt.fMax).map(p => p.amplitude).sort((a, b) => a - b);
-  const floor = floorAmps[floorAmps.length >> 1];
-  if (!(floor > 0)) return [];
-  const lo = Math.max(opt.fMin, opt.minCycles * res);
-  const cand: { frequency: number; amplitude: number; snr: number }[] = [];
-  for (let i = 1; i < fr.length - 1; i++) {
+  const lo = Math.max(opt.fMin, MIN_CYCLES * res);
+  let i0 = -1, i1 = -1, top = 0;
+  for (let i = 0; i < fr.length; i++) {
+    if (fr[i].frequency < lo || fr[i].frequency > opt.fMax) continue;
+    if (i0 < 0) i0 = i;
+    i1 = i;
+    top = Math.max(top, fr[i].amplitude);
+  }
+  if (i1 - i0 < 2 || !(top > 0)) return [];
+  const prominence = (i: number) => {
+    const a = fr[i].amplitude;
+    let lmin = a, rmin = a;
+    for (let l = i - 1; l >= i0 && fr[l].amplitude <= a; l--) lmin = Math.min(lmin, fr[l].amplitude);
+    for (let r = i + 1; r <= i1 && fr[r].amplitude <= a; r++) rmin = Math.min(rmin, fr[r].amplitude);
+    return a - Math.max(lmin, rmin);
+  };
+  const cand: { frequency: number; amplitude: number; rel: number }[] = [];
+  for (let i = i0 + 1; i < i1; i++) {
     const p = fr[i];
-    if (p.frequency < lo || p.frequency > opt.fMax) continue;
-    if (p.amplitude >= fr[i - 1].amplitude && p.amplitude > fr[i + 1].amplitude && p.amplitude / floor >= opt.snrMin)
-      cand.push({ ...p, snr: p.amplitude / floor });
+    if (p.amplitude >= fr[i - 1].amplitude && p.amplitude > fr[i + 1].amplitude
+      && p.amplitude >= opt.relMin * top && prominence(i) >= 0.1 * top)
+      cand.push({ ...p, rel: p.amplitude / top });
   }
   cand.sort((a, b) => b.amplitude - a.amplitude);
   const out: typeof cand = [];
@@ -58,8 +75,8 @@ const peakId = (s: Series, F: number) => `${s.fileName}::${s.col}::${F.toFixed(2
 
 // threshold settings outlive the step being unmounted (switching steps must
 // not reset them and silently re-pick with the defaults)
-// SNR 5 by default: generous on purpose, step 3 sorts real from spurious
-const saved = { on: true, snrMin: 5, fMin: 0, maxPerFile: 3 };
+// 30 % by default: generous on purpose, step 3 sorts real from spurious
+const saved = { on: true, relPct: 30, fMin: 0, maxPerFile: 3 };
 
 export function PeakPickStep({ series, column, columns, onColumn, picked, setPicked }: {
   series: Series[];
@@ -78,10 +95,10 @@ export function PeakPickStep({ series, column, columns, onColumn, picked, setPic
   const fMax = fMaxSel ?? autoMax;
   const [normRows, setNormRows] = useState(true);
   const [autoOn, setAutoOn] = useState(saved.on);
-  const [snrMin, setSnrMin] = useState(saved.snrMin);
+  const [relPct, setRelPct] = useState(saved.relPct);
   const [fMin, setFMin] = useState(saved.fMin);
   const [maxPerFile, setMaxPerFile] = useState(saved.maxPerFile);
-  useEffect(() => { Object.assign(saved, { on: autoOn, snrMin, fMin, maxPerFile }); }, [autoOn, snrMin, fMin, maxPerFile]);
+  useEffect(() => { Object.assign(saved, { on: autoOn, relPct, fMin, maxPerFile }); }, [autoOn, relPct, fMin, maxPerFile]);
 
   const add = (s: Series, F: number) => {
     const p = snapPeak(s, F);
@@ -93,10 +110,10 @@ export function PeakPickStep({ series, column, columns, onColumn, picked, setPic
 
   // peaks above the threshold, every file of this channel
   const above = useMemo(() => rows.flatMap(s =>
-    thresholdPeaks(s, { snrMin, fMin, fMax, minCycles: 6, maxPerFile }).map(p => ({
+    thresholdPeaks(s, { relMin: relPct / 100, fMin, fMax, maxPerFile }).map(p => ({
       id: peakId(s, p.frequency), fileName: s.fileName, col: s.col, angle: s.blm,
-      F: p.frequency, amp: p.amplitude, snr: p.snr, status: 'unchecked' as const, src: 'threshold' as const,
-    }))), [rows, snrMin, fMin, fMax, maxPerFile]);
+      F: p.frequency, amp: p.amplitude, rel: p.rel, status: 'unchecked' as const, src: 'threshold' as const,
+    }))), [rows, relPct, fMin, fMax, maxPerFile]);
 
   // Sync the threshold picks of this channel with `above`: drop the ones that
   // fell below (unless already confirmed/rejected in step 3), add the new
@@ -116,16 +133,15 @@ export function PeakPickStep({ series, column, columns, onColumn, picked, setPic
   useEffect(() => { if (autoOn) syncAbove(); }, [autoOn, above]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const mine = picked.filter(p => p.col === column);
-  const heatRows = rows.map(s => ({
-    x: s.blm, fileName: s.fileName, fft: s.result.fftResults,
-    peaks: mine.filter(p => p.fileName === s.fileName).map(p => ({ frequency: p.F, amplitude: p.amp })),
-  }));
+  const contourRows = useMemo(() => rows.map(s => ({ angle: s.blm, fileName: s.fileName, fft: s.result.fftResults, fLo: fLoOf(s) })), [rows]);
+  const peakTitle = (p: PickedPeak) =>
+    `${p.angle}° · ${fmt(p.F, 4)} T · ${STATUS_LABEL[p.status]}${p.rel ? ` · 높이 ${(p.rel * 100).toFixed(0)}%` : ''} · ${p.src === 'threshold' ? '임계값 자동' : '직접 선택'}\n${p.fileName}`;
 
   return (
     <StepCard
       step={2}
       title="FFT — 각도별로 봉우리 고르기"
-      lead={<>파일마다의 FFT 를 각도 순으로 쌓은 지도입니다. 각도를 따라 이어지는 밝은 줄기가 진동 주파수 가지입니다. SNR 이 임계값을 넘는 봉우리는 <b>자동으로</b> 목록에 들어가고(빨간 점), 임계값을 바꾸면 바로 다시 골라집니다. 놓친 봉우리는 <b>지도를 클릭</b>해 직접 추가하세요(±4% 안 가장 큰 봉우리). 다음 단계에서 하나씩 진짜인지 검증합니다.</>}
+      lead={<>각도(가로, 실제 간격) × 주파수(세로) FFT 등고선 지도입니다. 각도를 따라 이어지는 진한 줄기가 진동 주파수 가지이고, 고른 봉우리가 같은 축 위에 점으로 찍혀 F(θ) 가 바로 보입니다. 각도마다 가장 큰 봉우리 대비 <b>높이가 기준을 넘는 봉우리는 자동으로</b> 골라지고, 기준을 바꾸면 바로 다시 골라집니다. 놓친 봉우리는 <b>지도를 클릭</b>해 추가하세요(그 각도 파일들에서 ±4% 안 가장 큰 봉우리).</>}
       actions={<>
         <select value={column} onChange={e => onColumn(e.target.value)} className="rounded-lg border border-black/10 px-2 py-1 text-[13px]">
           {columns.map(c => <option key={c} value={c}>{c}</option>)}
@@ -135,7 +151,7 @@ export function PeakPickStep({ series, column, columns, onColumn, picked, setPic
             className="w-20 rounded-lg border border-black/10 px-2 py-1 text-[13px] tabular-nums" />
         </label>
         <label className="flex items-center gap-1.5 text-[12px] text-[#6e6e73]">
-          <input type="checkbox" checked={normRows} onChange={e => setNormRows(e.target.checked)} className="accent-[#0071e3]" /> 행마다 정규화
+          <input type="checkbox" checked={normRows} onChange={e => setNormRows(e.target.checked)} className="accent-[#0071e3]" /> 각도마다 정규화
         </label>
       </>}
     >
@@ -143,17 +159,16 @@ export function PeakPickStep({ series, column, columns, onColumn, picked, setPic
         <p className="text-[14px] text-[#6e6e73]">이 채널로 처리된 파일이 없습니다. Process All Files 를 먼저 실행하세요.</p>
       ) : (
         <>
-          <div className="pt-6">
-            <FFTHeatmap rows={heatRows} fMax={fMax} normalizeRows={normRows} showPeaks rowLabel="θ (°)"
-              onPick={(row, F) => { const s = rows.find(r => r.fileName === row.fileName); if (s) add(s, F); }} />
-          </div>
+          <AngleContour rows={contourRows} fMax={fMax} normalize={normRows}
+            peaks={mine.map(p => ({ id: p.id, angle: p.angle, F: p.F, status: p.status, manual: p.src !== 'threshold', title: peakTitle(p) }))}
+            onPick={(files, F) => { for (const s of rows) if (files.includes(s.fileName)) add(s, F); }} />
           <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-[#f5f5f7] px-4 py-3 text-[12px] text-[#6e6e73]">
             <label className="flex items-center gap-1.5 font-medium text-[#1d1d1f]">
               <input type="checkbox" checked={autoOn} onChange={e => setAutoOn(e.target.checked)} className="accent-[#0071e3]" /> 임계값 넘으면 자동 선택
             </label>
-            <label className="flex items-center gap-1.5" title="봉우리 진폭 / 스펙트럼 중앙값(잡음 바닥). 3단계 '진짜 진동' 기준이 SNR ≥ 10">
-              SNR ≥ <input type="number" value={snrMin} min={2} step={1} onChange={e => setSnrMin(Math.max(2, Number(e.target.value) || 0))}
-                className="w-16 rounded-lg border border-black/10 bg-white px-2 py-1 text-[13px] tabular-nums" />
+            <label className="flex items-center gap-1.5" title="같은 파일에서 가장 큰 봉우리 대비 높이 (사용 가능 범위 안). 낮출수록 약한 가지까지 골라짐">
+              높이 ≥ <input type="range" min={5} max={95} step={5} value={relPct} onChange={e => setRelPct(Number(e.target.value))} className="w-28 accent-[#0071e3]" />
+              <span className="w-9 tabular-nums text-[#1d1d1f]">{relPct}%</span>
             </label>
             <label className="flex items-center gap-1.5" title="이보다 낮은 F 는 무시. 창 안 진동 6회 미만(검증 불가)도 자동으로 제외">
               F ≥ <input type="number" value={fMin} min={0} step={10} onChange={e => setFMin(Math.max(0, Number(e.target.value) || 0))}
@@ -176,7 +191,7 @@ export function PeakPickStep({ series, column, columns, onColumn, picked, setPic
           {mine.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-1.5">
               {[...mine].sort((a, b) => a.angle - b.angle || a.F - b.F).map(p => (
-                <span key={p.id} className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[12px] tabular-nums ${STATUS_STYLE[p.status]}`} title={`${p.fileName} · ${STATUS_LABEL[p.status]}${p.snr ? ` · SNR ${p.snr.toFixed(1)}` : ''} · ${p.src === 'threshold' ? '임계값 자동' : '직접 선택'}`}>
+                <span key={p.id} className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[12px] tabular-nums ${STATUS_STYLE[p.status]}`} title={peakTitle(p)}>
                   {p.src !== 'threshold' && <span className="h-1.5 w-1.5 rounded-full bg-[#0071e3]" />}
                   {p.angle}° · {fmt(p.F, 4)} T
                   <button onClick={() => setPicked(prev => prev.filter(q => q.id !== p.id))} className="opacity-50 hover:opacity-100"><X size={11} /></button>
