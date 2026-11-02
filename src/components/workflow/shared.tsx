@@ -14,6 +14,10 @@ export interface PickedPeak {
   F: number;
   amp: number;
   status: 'unchecked' | 'confirmed' | 'rejected';
+  // 'threshold' = added by step 2's SNR threshold and replaced when it changes;
+  // absent = picked by hand
+  src?: 'threshold';
+  snr?: number;
   auto?: Verdict;
   branch?: string;
   note?: string;
